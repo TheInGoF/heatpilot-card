@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/TheInGoF/heatpilot-card/main/logo.png" alt="HeatPilot" width="96" align="right">
+
 # HeatPilot Card
 
 Karten für Home Assistant zum Add-on **[EMS HeatPilot](https://github.com/TheInGoF/ems-heatpilot)** – im Stil der
@@ -6,7 +8,7 @@ HeatPilot-Seite, ohne card-mod, ohne weitere Abhängigkeiten. Bedienen geht auch
 | Karte | Was sie zeigt |
 |---|---|
 | `custom:heatpilot-rooms-card` | Raumkacheln wie im Reiter „Heizen“ (Ist, Luftfeuchte, Zustand, Farben), direkt auf dem Hintergrund. Antippen öffnet das Thermostat-Pop-up von Home Assistant |
-| `custom:heatpilot-boost-card` | „HeatPilot Steuerung“: Räume wählen, Temperatur – Boost mit Dauer („bis 18:44“), Soll ohne Zeitlimit, Zeitplan, Aus; laufende Boosts mit Restzeit, Stopp, +30 min |
+| `custom:heatpilot-control-card` | „HeatPilot Steuerung“ für mehrere Räume auf einmal – wie die Leiste im Reiter „Heizen“: Räume wählen, Temperatur, Boost mit Dauer („bis 18:44“), Zeitplan, Aus; laufende Boosts mit Restzeit, Stopp, +30 min |
 | `custom:heatpilot-weather-card` | Wetter jetzt (Symbol, Temperatur, gefühlt, Wind mit Richtung und Böen, Feuchte, Druck, UV, Wolken) und die nächsten 24 Stunden als Stundenbalken |
 
 ## Voraussetzung
@@ -35,7 +37,7 @@ type: custom:heatpilot-rooms-card
 ```
 
 ```yaml
-type: custom:heatpilot-boost-card
+type: custom:heatpilot-control-card
 ```
 
 ```yaml
@@ -48,4 +50,12 @@ entity: weather.wetter_lokal
 Die Karten schreiben einen Befehl als JSON in `input_text.heatpilot_befehl`, z. B.
 `{"a": "boost", "rooms": ["climate.wohnzimmer"], "temp": 22, "minutes": 120}`. HeatPilot führt ihn aus wie die
 Knöpfe im Reiter „Heizen“, leert das Feld und meldet das Ergebnis in `sensor.heatpilot_boost` (Attribut `last`) –
-die Karte zeigt Fehler direkt unter den Knöpfen. Mögliche Befehle: `boost`, `schedule`, `temp`, `mode`.
+die Karte zeigt Fehler direkt unter den Knöpfen. Mögliche Befehle: `boost`, `schedule`, `mode`.
+
+## Wer bedient was
+
+| Was | Wo |
+|---|---|
+| Einen Raum ansehen und einstellen (Soll, Betriebsart, Verlauf) | Raumkachel antippen → Thermostat-Pop-up von Home Assistant |
+| Mehrere Räume auf einmal: Boost, Zeitplan, Aus | HeatPilot Steuerung |
+| Pause, Einstellungen | HeatPilot-Seite (Admins) |
