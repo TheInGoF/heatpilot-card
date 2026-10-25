@@ -5,7 +5,7 @@ HeatPilot-Seite, ohne card-mod, ohne weitere Abhängigkeiten. Bedienen geht auch
 
 | Karte | Was sie zeigt |
 |---|---|
-| `custom:heatpilot-rooms-card` | Raumkacheln wie im Reiter „Heizen“ (Ist, Luftfeuchte, Zustand, Farben). Antippen klappt die Bedienung auf: Soll mit − / + (Farbe nach Soll), Zeitplan, Aus, Boost |
+| `custom:heatpilot-rooms-card` | Raumkacheln wie im Reiter „Heizen“ (Ist, Luftfeuchte, Zustand, Farben), direkt auf dem Hintergrund. Antippen dreht die Kachel zur Bedienung um – in derselben Kachel, nichts springt: Soll mit − / + (Farbe nach Soll), Zeitplan, Aus. Boost über die Boost-Karte |
 | `custom:heatpilot-boost-card` | Boost ohne Pop-up: Räume, Temperatur, Dauer mit „bis 18:44“ – laufende Boosts mit Restzeit, Stopp, +30 min |
 | `custom:heatpilot-weather-card` | Wetter jetzt (Symbol, Temperatur, gefühlt, Wind mit Richtung und Böen, Feuchte, Druck, UV, Wolken) und die nächsten 24 Stunden als Stundenbalken |
 
@@ -19,7 +19,8 @@ Wetter-Entität mit stündlicher Vorhersage.
 
 1. HACS → ⋮ → **Benutzerdefinierte Repositories** → `https://github.com/TheInGoF/heatpilot-card`, Typ **Dashboard**.
 2. „HeatPilot Card“ suchen, herunterladen, Seite neu laden.
-3. Dashboard bearbeiten → Karte hinzufügen → „HeatPilot Räume“, „HeatPilot Boost“ oder „HeatPilot Wetter“.
+3. Dashboard bearbeiten → Karte hinzufügen → Reiter „Nach Karte“ → „HeatPilot“ suchen. Alle drei Karten haben einen
+   visuellen Editor: Räume (leer = alle), Titel, Spalten, Rahmen bzw. die Wetter-Entität.
 
 ## Beispiele
 

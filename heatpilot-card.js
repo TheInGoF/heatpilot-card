@@ -9,7 +9,7 @@
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.1.0";
+const HP_VERSION = "0.2.0";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
@@ -108,40 +108,65 @@ class HPBase extends HTMLElement {
     return el;
   }
   canCommand() { return !!this._hass.states[COMMAND]; }
-  // Befehl senden, Ergebnis abwarten (bis 20 s) und in .msg melden
-  async command(cmd, msgEl) {
-    if (!this.canCommand()) { if (msgEl) { msgEl.className = "msg err"; msgEl.textContent = "Bedienen nicht möglich – HeatPilot-Add-on ab 0.56 nötig."; } return; }
-    if (msgEl) { msgEl.className = "msg muted"; msgEl.textContent = "Wird gesendet …"; }
+  // Befehl senden und das Ergebnis abwarten (bis 20 s); show(text, fehler) meldet den Stand
+  async command(cmd, show = () => {}) {
+    if (!this.canCommand()) { show("Bedienen nicht möglich – HeatPilot-Add-on ab 0.56 nötig.", true); return null; }
+    show("Wird gesendet …", false);
     try {
       const n = await sendCommand(this._hass, cmd);
       for (let i = 0; i < 40; i++) {
         await new Promise((r) => setTimeout(r, 500));
         const res = commandResult(this._hass, n);
-        if (res) {
-          if (msgEl) { msgEl.className = res.ok ? "msg muted" : "msg err"; msgEl.textContent = res.ok ? (res.text || "") : `Nicht gelungen: ${res.text || "unbekannter Fehler"}`; }
-          return res;
-        }
+        if (res) { show(res.ok ? (res.text || "") : `Nicht gelungen: ${res.text || "unbekannter Fehler"}`, !res.ok); return res; }
       }
-      if (msgEl) { msgEl.className = "msg err"; msgEl.textContent = "Keine Antwort von HeatPilot – läuft das Add-on?"; }
+      show("Keine Antwort von HeatPilot – läuft das Add-on?", true);
     } catch (e) {
-      if (msgEl) { msgEl.className = "msg err"; msgEl.textContent = `Nicht gesendet: ${e.message || e}`; }
+      show(`Nicht gesendet: ${e.message || e}`, true);
     }
     return null;
   }
+  // Stand eines Befehls als Zustand der Karte – bleibt beim Neuzeichnen stehen
+  report() { return (text, err) => { this._msg = { text, err }; this._key = null; this.render(); }; }
 }
 
 // ------------------------------------------------------------------ Räume
+// Zustandszeile wie die Raumkachel der HeatPilot-Seite (roomState dort)
+function roomState(r) {
+  const t = fmt(r.target) + "°";
+  if (r.ems) return `Nur Anzeige · ${t}`;
+  if (r.boost) return `Boost · ${t} · ${hm(r.boost.left_min || 0).replace(" h", "")} bis ${clock(r.boost.until)}`;
+  if (r.managing && r.managed && r.lead === "ventil" && r.phase) {
+    const pct = r.valve_want ?? r.valve;
+    return `Ventil · ${PHASE[r.phase] || r.phase} ${fmt(r.desired)}°` + (pct !== null && pct !== undefined ? ` · ${fmt(pct, 0)} %` : "") + (r.valve_hold ? " · von Hand" : "");
+  }
+  if (r.managing && r.managed && r.phase) {
+    const until = r.manual_until ? ` bis ${clock(r.manual_until)}` : "";
+    if (r.mode === "off") return "Aus" + until;
+    if (r.manual) return `Manuell · ${t}${until}`;
+    const d = fmt(r.desired) + "°";
+    let s = r.paused ? `Pause · ${t}` : r.phase === "vorheizen" ? `Vorheizen → ${d}` : `HeatPilot · ${PHASE[r.phase] || r.phase} ${d}`;
+    if (r.reach_c !== null && r.reach_c !== undefined && r.desired !== null && r.reach_c < r.desired - 0.2) s += ` · erreicht ≈ ${fmt(r.reach_c)}°`;
+    if (r.next_phase === "vorheizen" && r.next_change) s += ` · Vorheizen ab ${clock(r.next_change)}` + (r.preheat_flow ? ` (${fmt(r.preheat_flow, 0)} °C)` : "");
+    return s;
+  }
+  if (r.mode === "off") return "Frostschutz";
+  return r.mode === "heat" ? `Manuell · ${t}` : `Zeitplan · ${t}`;
+}
+// 21,5 → „21<small>,5 °C</small>“ (große Zahl, kleine Nachkommastelle)
+function bigNumber(v, unit) {
+  const s = fmt(v), i = s.indexOf(",");
+  return i < 0 ? `${s}<small>${unit}</small>` : `${s.slice(0, i)}<small>${s.slice(i)}${unit}</small>`;
+}
+
 const ROOMS_CSS = `
-.grid { display: grid; grid-template-columns: repeat(var(--ncols, 2), minmax(0, 1fr)); gap: 10px; }
 div.hp-root { display: block; container-type: inline-size; }  /* ohne Kartenrahmen: Kacheln direkt auf dem Hintergrund */
 div.hp-root > h2 { margin: 4px 4px 10px; }
-div.hp-root .panel { background: var(--ha-card-background, var(--card-background-color)); }
+.grid { display: grid; grid-template-columns: repeat(var(--ncols, 2), minmax(0, 1fr)); gap: 10px; }
 @container (min-width: 560px) { .grid { grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); } }
 .rtile { position: relative; display: flex; flex-direction: column; justify-content: space-between; aspect-ratio: 1 / 1; padding: 12px 14px;
-  border-radius: 16px; border: 1px solid var(--hp-border); background: var(--card-background-color, transparent); cursor: pointer;
-  user-select: none; text-align: left; color: var(--hp-text); min-width: 0; }
-.rtile.sel { outline: 2px solid var(--hp-blue); outline-offset: 1px; }
-.rtile .top { display: flex; justify-content: space-between; align-items: flex-start; min-height: 30px; }
+  border-radius: 16px; border: 1px solid var(--hp-border); background: var(--ha-card-background, var(--card-background-color, transparent));
+  cursor: pointer; user-select: none; text-align: left; color: var(--hp-text); min-width: 0; box-sizing: border-box; }
+.rtile .top { display: flex; justify-content: space-between; align-items: flex-start; min-height: 30px; gap: 6px; }
 .rtile .hum { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; font-size: 12px; font-weight: 600; padding: 3px 8px;
   border-radius: 10px; background: rgba(127,127,127,.16); color: var(--hp-text2); }
 .rtile .pw { color: var(--hp-text2); opacity: .6; } .rtile .pw svg { width: 30px; height: 30px; }
@@ -154,18 +179,25 @@ div.hp-root .panel { background: var(--ha-card-background, var(--card-background
 .rtile.heating .hum { background: rgba(255,255,255,.16); color: var(--hp-heat-fg); }
 .rtile.off { background: var(--hp-off-bg); color: var(--hp-text2); }
 .rtile .left { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 10px; background: var(--hp-heat-fg); color: #111; }
-.panel { margin-top: 12px; border: 1px solid var(--hp-border); border-radius: 14px; padding: 12px 14px; }
-.ph { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.ph b { font-size: 16px; color: var(--hp-text); }
-.setp { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 12px 0; }
-.setp .rnd { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--tile-fg); background: var(--tile-bg); color: var(--tile-fg);
-  font-size: 24px; line-height: 1; cursor: pointer; }
-.setp .val { font-size: 40px; font-weight: 700; color: var(--tile-fg); font-variant-numeric: tabular-nums; min-width: 4.2ch; text-align: center; }
-.setp .val small { font-size: 18px; font-weight: 600; }
-.acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+/* Bedienung in derselben Kachel: Soll − / +, Zeitplan, Aus – Boost nur über die Boost-Karte */
+.rtile.ctl { cursor: default; border-color: var(--tile-fg); }
+.rtile.ctl h3 { margin: 0; color: var(--hp-text); }
+.x { border: 0; background: rgba(127,127,127,.16); color: var(--hp-text2); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; flex: none; }
+.setp { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.setp .rnd { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--tile-fg); background: var(--tile-bg); color: var(--tile-fg);
+  font-size: 20px; line-height: 1; cursor: pointer; flex: none; padding: 0; }
+.setp .rnd:disabled { opacity: .35; cursor: default; }
+.setp .val { font-size: 32px; font-weight: 700; color: var(--tile-fg); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.setp .val small { font-size: 14px; font-weight: 600; }
+.acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.acts .btn { justify-content: center; padding: 6px 4px; font-size: 12px; }
+.acts .btn.on { border-color: var(--hp-blue); color: var(--hp-blue); }
+.tmsg { font-size: 11px; color: var(--hp-text2); min-height: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tmsg.err { color: var(--error-color, #c62828); }
 `;
 
 class HeatPilotRoomsCard extends HPBase {
+  static getConfigElement() { return document.createElement("heatpilot-rooms-card-editor"); }
   static getStubConfig() { return {}; }
   getCardSize() { return 4; }
   roomCount() { return this.config.entities && this.config.entities.length ? this.config.entities.length : this._hass ? roomEntities(this._hass, this.config).length : 4; }
@@ -174,71 +206,51 @@ class HeatPilotRoomsCard extends HPBase {
   getLayoutOptions() { return { grid_columns: this.roomCount() === 1 ? 2 : 4, grid_rows: "auto" }; }
   renderKey(hass) {
     const es = roomEntities(hass, this.config || {});
-    return JSON.stringify([es.map((e) => [hass.states[e].state, hass.states[e].attributes]), !!hass.states[COMMAND], this._sel, this._sp]);
+    return JSON.stringify([es.map((e) => [hass.states[e].state, hass.states[e].attributes]), !!hass.states[COMMAND], this._sel, this._sp, this._msg]);
   }
-  stateText(r) {
-    const t = fmt(r.target) + "°";
-    if (r.ems) return `Nur Anzeige · ${t}`;
-    if (r.boost) return `Boost · ${t} · ${hm(r.boost.left_min || 0).replace(" h", "")} bis ${clock(r.boost.until)}`;
-    if (r.managing && r.managed && r.lead === "ventil" && r.phase) {
-      const pct = r.valve_want ?? r.valve;
-      return `Ventil · ${PHASE[r.phase] || r.phase} ${fmt(r.desired)}°` + (pct !== null && pct !== undefined ? ` · ${fmt(pct, 0)} %` : "") + (r.valve_hold ? " · von Hand" : "");
-    }
-    if (r.managing && r.managed && r.phase) {
-      const until = r.manual_until ? ` bis ${clock(r.manual_until)}` : "";
-      if (r.mode === "off") return "Aus" + until;
-      if (r.manual) return `Manuell · ${t}${until}`;
-      const d = fmt(r.desired) + "°";
-      let s = r.paused ? `Pause · ${t}` : r.phase === "vorheizen" ? `Vorheizen → ${d}` : `HeatPilot · ${PHASE[r.phase] || r.phase} ${d}`;
-      if (r.reach_c !== null && r.reach_c !== undefined && r.desired !== null && r.reach_c < r.desired - 0.2) s += ` · erreicht ≈ ${fmt(r.reach_c)}°`;
-      if (r.next_phase === "vorheizen" && r.next_change) s += ` · Vorheizen ab ${clock(r.next_change)}` + (r.preheat_flow ? ` (${fmt(r.preheat_flow, 0)} °C)` : "");
-      return s;
-    }
-    if (r.mode === "off") return "Frostschutz";
-    return r.mode === "heat" ? `Manuell · ${t}` : `Zeitplan · ${t}`;
-  }
+  // Anzeige wie im Reiter „Heizen“
   tile(r) {
     const off = r.mode === "off", heating = !off && (r.action === "heating" || (r.valve || 0) > 0);
-    const s = fmt(r.temp), i = s.indexOf(",");
-    const big = i < 0 ? `${s}<small>°</small>` : `${s.slice(0, i)}<small>${s.slice(i)}°</small>`;
     const hum = r.humidity !== null && r.humidity !== undefined ? `<span class="hum">${ICON.drop}${fmt(r.humidity, 0)} %</span>` : "<span></span>";
     const right = r.boost ? `<span class="left">noch ${leftText(r.boost.left_min || 0)}</span>` : off ? `<span class="pw">${ICON.off}</span>` : "";
-    return `<div class="rtile ${off ? "off" : heating ? "heating" : "idle"}${this._sel === r.entity ? " sel" : ""}" data-e="${esc(r.entity)}" role="button" tabindex="0">` +
-      `<div class="top">${hum}${right}</div><div><div class="big">${big}</div><h3>${esc(r.name)}</h3><div class="state">${esc(this.stateText(r))}</div></div></div>`;
+    return `<div class="rtile ${off ? "off" : heating ? "heating" : "idle"}" data-open="${esc(r.entity)}" role="button" tabindex="0">` +
+      `<div class="top">${hum}${right}</div><div><div class="big">${bigNumber(r.temp, "°")}</div><h3>${esc(r.name)}</h3>` +
+      `<div class="state">${esc(roomState(r))}</div></div></div>`;
   }
-  panel(r) {
+  // Bedienung in derselben Kachel – gleiche Größe, nichts springt
+  ctlTile(r) {
     const lim = (this._hass.states[BOOST] || {}).attributes || {};
-    const sp = this._sp ?? r.target, c = tileColors(r.mode === "off" ? null : sp, r.mode);
-    if (r.ems) return `<div class="panel"><div class="ph"><b>${esc(r.name)}</b><span class="muted">Heizkreis von EMS-ESP – nur Anzeige</span></div></div>`;
-    const v = fmt(sp), k = v.indexOf(",");
-    const val = k < 0 ? `${v}<small> °C</small>` : `${v.slice(0, k)}<small>${v.slice(k)} °C</small>`;
-    const b = store.get("hp-boost", { temp: 22, minutes: 60 });
-    return `<div class="panel" style="--tile-fg:${c.fg};--tile-bg:${c.bg}"><div class="ph"><b>${esc(r.name)}</b><span class="muted">${esc(this.stateText(r))}</span></div>` +
+    const sp = this._sp ?? r.target, c = tileColors(r.mode === "off" ? null : sp, r.mode), m = this._msg || {};
+    const head = `<div class="top"><h3>${esc(r.name)}</h3><button class="x" data-close aria-label="schließen">✕</button></div>`;
+    if (r.ems) return `<div class="rtile ctl" style="--tile-fg:var(--hp-border)">${head}<div class="state">Heizkreis von EMS-ESP – nur Anzeige</div><span></span></div>`;
+    return `<div class="rtile ctl" style="--tile-fg:${c.fg};--tile-bg:${c.bg}">${head}` +
       `<div class="setp"><button class="rnd" data-d="-0.5" aria-label="kälter"${sp <= (lim.temp_min ?? 5) ? " disabled" : ""}>−</button>` +
-      `<span class="val">${val}</span><button class="rnd" data-d="0.5" aria-label="wärmer"${sp >= (lim.temp_max ?? 25) ? " disabled" : ""}>+</button></div>` +
-      `<div class="acts"><button class="btn" data-a="schedule">${ICON.sched}Zeitplan</button>` +
-      (r.mode === "off" ? "" : `<button class="btn" data-a="off">${ICON.off}Aus</button>`) +
-      `<button class="btn" data-a="boost">${ICON.boost}Boost ${fmt(b.temp)} °C · ${leftText(b.minutes).replace(":00 h", " h")}</button></div>` +
-      `<div class="msg" id="msg"></div></div>`;
+      `<span class="val">${sp === null || sp === undefined ? "–" : bigNumber(sp, " °C")}</span>` +
+      `<button class="rnd" data-d="0.5" aria-label="wärmer"${sp >= (lim.temp_max ?? 25) ? " disabled" : ""}>+</button></div>` +
+      `<div><div class="acts"><button class="btn${r.mode === "auto" && !r.boost ? " on" : ""}" data-a="schedule">${ICON.sched}Zeitplan</button>` +
+      `<button class="btn${r.mode === "off" ? " on" : ""}" data-a="off">${ICON.off}Aus</button></div>` +
+      `<div class="tmsg${m.err ? " err" : ""}">${esc(m.text || roomState(r))}</div></div></div>`;
   }
   render() {
     const card = this.root(ROOMS_CSS, this.config.card ? "ha-card" : "div"), hass = this._hass;
     const rooms = roomEntities(hass, this.config).map((e) => roomOf(hass, e)), k = rooms.length;
     if (!k) { card.innerHTML = `<p class="muted">Keine HeatPilot-Räume gefunden – HeatPilot-Add-on ab 0.56 nötig.</p>`; return; }
-    const sel = rooms.find((r) => r.entity === this._sel);
-    const msg = this.shadowRoot.getElementById("msg");
-    const keepMsg = msg && msg.textContent ? [msg.className, msg.textContent] : null;
+    const cols = this.config.columns || (k <= 4 ? k : k <= 6 ? 3 : 4);
     card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") +
-      `<div class="grid" style="--cols:${this.config.columns || (k <= 4 ? k : k <= 6 ? 3 : 4)};--ncols:${this.config.columns || Math.min(k, 2)}">${rooms.map((r) => this.tile(r)).join("")}</div>` +
-      (sel ? this.panel(sel) : "");
-    if (keepMsg) { const m = this.shadowRoot.getElementById("msg"); if (m) { m.className = keepMsg[0]; m.textContent = keepMsg[1]; } }
-    card.querySelectorAll(".rtile").forEach((el) => el.addEventListener("click", () => {
-      this._sel = this._sel === el.dataset.e ? null : el.dataset.e;
-      this._sp = null; this._key = null; this.render();
-    }));
-    if (!sel) return;
-    card.querySelectorAll(".rnd").forEach((el) => el.addEventListener("click", () => this.step(sel, Number(el.dataset.d))));
-    card.querySelectorAll("[data-a]").forEach((el) => el.addEventListener("click", () => this.act(sel, el.dataset.a)));
+      `<div class="grid" style="--cols:${cols};--ncols:${this.config.columns || Math.min(k, 2)}">` +
+      rooms.map((r) => (r.entity === this._sel ? this.ctlTile(r) : this.tile(r))).join("") + "</div>";
+    const on = (sel, fn) => card.querySelectorAll(sel).forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); fn(el); }));
+    on("[data-open]", (el) => this.select(el.dataset.open));
+    on("[data-close]", () => this.select(null));
+    const r = rooms.find((x) => x.entity === this._sel);
+    if (!r) return;
+    on("[data-d]", (el) => this.step(r, Number(el.dataset.d)));
+    on("[data-a]", (el) => this.command(el.dataset.a === "off" ? { a: "mode", rooms: [r.climate], mode: "off" }
+      : { a: "schedule", rooms: [r.climate] }, this.report()));
+  }
+  select(entity) {
+    clearTimeout(this._t);
+    this._sel = entity; this._sp = null; this._msg = null; this._key = null; this.render();
   }
   // −/+: erst nach 1,5 s Ruhe senden – mehrmaliges Tippen wird ein Befehl
   step(r, d) {
@@ -248,17 +260,9 @@ class HeatPilotRoomsCard extends HPBase {
     this._key = null; this.render();
     clearTimeout(this._t);
     this._t = setTimeout(async () => {
-      const temp = this._sp;
-      await this.command({ a: "temp", room: r.climate, temp }, this.shadowRoot.getElementById("msg"));
-      this._sp = null; this._key = null;
+      await this.command({ a: "temp", room: r.climate, temp: this._sp }, this.report());
+      this._sp = null; this._key = null; this.render();
     }, 1500);
-  }
-  act(r, a) {
-    const msg = this.shadowRoot.getElementById("msg");
-    if (a === "schedule") return this.command({ a: "schedule", rooms: [r.climate] }, msg);
-    if (a === "off") return this.command({ a: "mode", rooms: [r.climate], mode: "off" }, msg);
-    const b = store.get("hp-boost", { temp: 22, minutes: 60 });
-    return this.command({ a: "boost", rooms: [r.climate], temp: b.temp, minutes: b.minutes }, msg);
   }
 }
 
@@ -284,6 +288,7 @@ const BOOST_CSS = `
 const DURATIONS = [30, 60, 120, 180];
 
 class HeatPilotBoostCard extends HPBase {
+  static getConfigElement() { return document.createElement("heatpilot-boost-card-editor"); }
   static getStubConfig() { return {}; }
   getCardSize() { return 5; }
   setConfig(config) {
@@ -294,7 +299,7 @@ class HeatPilotBoostCard extends HPBase {
   renderKey(hass) {
     const s = hass.states[BOOST];
     return JSON.stringify([s && s.state, s && s.attributes.rooms, roomEntities(hass, this.config || {}).length, this._b, this._more,
-      Math.floor(Date.now() / 60000), !!hass.states[COMMAND]]);
+      Math.floor(Date.now() / 60000), !!hass.states[COMMAND], this._msg]);
   }
   render() {
     const card = this.root(BOOST_CSS), hass = this._hass, s = hass.states[BOOST];
@@ -314,7 +319,8 @@ class HeatPilotBoostCard extends HPBase {
       if (!this._more) h += `<button class="link" data-more>Weitere Räume boosten ›</button>`;
     }
     if (!running.length || this._more) h += this.form(rooms, a);
-    card.innerHTML = h + `<div class="msg" id="msg"></div>`;
+    const m = this._msg || {};
+    card.innerHTML = h + `<div class="msg${m.err ? " err" : " muted"}">${esc(m.text || "")}</div>`;
     this.wire(card, running, a);
   }
   form(rooms, a) {
@@ -331,7 +337,7 @@ class HeatPilotBoostCard extends HPBase {
   }
   save() { store.set("hp-boost", this._b); this._key = null; this.render(); }
   wire(card, running, a) {
-    const msg = () => this.shadowRoot.getElementById("msg"), b = this._b;
+    const msg = () => this.report(), b = this._b;
     const on = (sel, fn) => card.querySelectorAll(sel).forEach((el) => el.addEventListener("click", () => fn(el)));
     on("[data-room]", (el) => { const c = el.dataset.room; b.rooms = b.rooms.includes(c) ? b.rooms.filter((x) => x !== c) : [...b.rooms, c]; this.save(); });
     on("[data-all]", () => {
@@ -401,6 +407,7 @@ const WX_CSS = `
 `;
 
 class HeatPilotWeatherCard extends HPBase {
+  static getConfigElement() { return document.createElement("heatpilot-weather-card-editor"); }
   static getStubConfig(hass) { return { entity: Object.keys(hass.states).find((e) => e.startsWith("weather.")) || "" }; }
   getCardSize() { return 6; }
   setConfig(config) {
@@ -469,6 +476,50 @@ class HeatPilotWeatherCard extends HPBase {
   }
 }
 
+// ------------------------------------------------------------------ Editoren (visueller Karten-Editor)
+// ha-form von Home Assistant mit einem Schema je Karte; leere Felder fallen aus der Konfiguration
+class HPEditor extends HTMLElement {
+  setConfig(config) { this._config = { ...config }; this.render(); }
+  set hass(hass) { this._hass = hass; this.render(); }
+  render() {
+    if (!this._hass || !this._config) return;
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (f) => f.label || f.name;
+      this._form.computeHelper = (f) => f.helper;
+      this._form.addEventListener("value-changed", (e) => {
+        const config = { ...e.detail.value };
+        for (const [k, v] of Object.entries(config)) if (v === "" || v === undefined || v === null || (Array.isArray(v) && !v.length)) delete config[k];
+        this._config = config;
+        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+      });
+      this.appendChild(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.data = this._config;
+    this._form.schema = this.schema(this._hass);
+  }
+}
+const roomSelector = (hass, helper) => ({ name: "entities", label: "Räume", helper,
+  selector: { entity: { multiple: true, include_entities: Object.keys(hass.states).filter((e) => e.startsWith(ROOM_PREFIX)) } } });
+const TITLE = { name: "title", label: "Titel", selector: { text: {} } };
+class RoomsCardEditor extends HPEditor {
+  schema(hass) {
+    return [roomSelector(hass, "Leer = alle Räume von HeatPilot, in dessen Reihenfolge"), TITLE,
+      { type: "grid", name: "", schema: [
+        { name: "columns", label: "Spalten (breite Ansicht)", selector: { number: { min: 1, max: 6, mode: "box" } } },
+        { name: "card", label: "Mit Kartenrahmen", selector: { boolean: {} } }] }];
+  }
+}
+class BoostCardEditor extends HPEditor {
+  schema(hass) { return [roomSelector(hass, "Räume zur Auswahl – leer = alle"), TITLE]; }
+}
+class WeatherCardEditor extends HPEditor {
+  schema() { return [{ name: "entity", label: "Wetter-Entität", required: true, selector: { entity: { domain: "weather" } } }, TITLE]; }
+}
+customElements.define("heatpilot-rooms-card-editor", RoomsCardEditor);
+customElements.define("heatpilot-boost-card-editor", BoostCardEditor);
+customElements.define("heatpilot-weather-card-editor", WeatherCardEditor);
 customElements.define("heatpilot-rooms-card", HeatPilotRoomsCard);
 customElements.define("heatpilot-boost-card", HeatPilotBoostCard);
 customElements.define("heatpilot-weather-card", HeatPilotWeatherCard);
