@@ -129,7 +129,8 @@ class HPBase extends HTMLElement {
 
 // ------------------------------------------------------------------ Räume
 const ROOMS_CSS = `
-.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.grid { display: grid; grid-template-columns: repeat(var(--ncols, 2), minmax(0, 1fr)); gap: 10px; }
+ha-card.solo { padding: 0; background: none; border: none; box-shadow: none; }  /* ein Raum: die Kachel ist die Karte */
 @container (min-width: 560px) { .grid { grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); } }
 .rtile { position: relative; display: flex; flex-direction: column; justify-content: space-between; aspect-ratio: 1 / 1; padding: 12px 14px;
   border-radius: 16px; border: 1px solid var(--hp-border); background: var(--card-background-color, transparent); cursor: pointer;
@@ -162,6 +163,10 @@ const ROOMS_CSS = `
 class HeatPilotRoomsCard extends HPBase {
   static getStubConfig() { return {}; }
   getCardSize() { return 4; }
+  roomCount() { return this.config.entities && this.config.entities.length ? this.config.entities.length : this._hass ? roomEntities(this._hass, this.config).length : 4; }
+  // Sections-Dashboard: ein Raum = halbe Breite (zwei Einzelkarten nebeneinander), mehrere = volle Breite
+  getGridOptions() { return { columns: this.roomCount() === 1 ? 6 : 12, min_columns: 3, rows: "auto" }; }
+  getLayoutOptions() { return { grid_columns: this.roomCount() === 1 ? 2 : 4, grid_rows: "auto" }; }
   renderKey(hass) {
     const es = roomEntities(hass, this.config || {});
     return JSON.stringify([es.map((e) => [hass.states[e].state, hass.states[e].attributes]), !!hass.states[COMMAND], this._sel, this._sp]);
@@ -216,10 +221,11 @@ class HeatPilotRoomsCard extends HPBase {
     const rooms = roomEntities(hass, this.config).map((e) => roomOf(hass, e)), k = rooms.length;
     if (!k) { card.innerHTML = `<p class="muted">Keine HeatPilot-Räume gefunden – HeatPilot-Add-on ab 0.56 nötig.</p>`; return; }
     const sel = rooms.find((r) => r.entity === this._sel);
+    card.classList.toggle("solo", k === 1 && !this.config.title && !sel);
     const msg = this.shadowRoot.getElementById("msg");
     const keepMsg = msg && msg.textContent ? [msg.className, msg.textContent] : null;
     card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") +
-      `<div class="grid" style="--cols:${this.config.columns || (k <= 4 ? k : k <= 6 ? 3 : 4)}">${rooms.map((r) => this.tile(r)).join("")}</div>` +
+      `<div class="grid" style="--cols:${this.config.columns || (k <= 4 ? k : k <= 6 ? 3 : 4)};--ncols:${this.config.columns || Math.min(k, 2)}">${rooms.map((r) => this.tile(r)).join("")}</div>` +
       (sel ? this.panel(sel) : "");
     if (keepMsg) { const m = this.shadowRoot.getElementById("msg"); if (m) { m.className = keepMsg[0]; m.textContent = keepMsg[1]; } }
     card.querySelectorAll(".rtile").forEach((el) => el.addEventListener("click", () => {
