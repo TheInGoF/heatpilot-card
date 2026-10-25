@@ -9,7 +9,7 @@
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.2.0";
+const HP_VERSION = "0.3.0";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
@@ -48,6 +48,8 @@ const BASE_CSS = `
   --hp-text: var(--primary-text-color); --hp-text2: var(--secondary-text-color); --hp-border: var(--divider-color, rgba(127,127,127,.25)); }
 :host([dark]) { --hp-heat-bg: #4a2d0c; --hp-heat-fg: #f5a729; --hp-off-bg: #161615; --hp-blue: #3987e5; --hp-orange: #d95926; }
 ha-card { padding: 14px 16px; container-type: inline-size; }
+div.hp-root { display: block; container-type: inline-size; }  /* ohne Kartenrahmen (Standard): direkt auf dem Hintergrund */
+div.hp-root > h2 { margin: 4px 4px 10px; }
 h2 { margin: 0 0 10px; font-size: 17px; font-weight: 600; color: var(--hp-text); display: flex; align-items: center; gap: 8px; }
 .muted { color: var(--hp-text2); font-size: 12px; }
 .lbl { font-size: 12px; color: var(--hp-text2); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; margin: 12px 0 6px; }
@@ -159,8 +161,6 @@ function bigNumber(v, unit) {
 }
 
 const ROOMS_CSS = `
-div.hp-root { display: block; container-type: inline-size; }  /* ohne Kartenrahmen: Kacheln direkt auf dem Hintergrund */
-div.hp-root > h2 { margin: 4px 4px 10px; }
 .grid { display: grid; grid-template-columns: repeat(var(--ncols, 2), minmax(0, 1fr)); gap: 10px; }
 @container (min-width: 560px) { .grid { grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); } }
 .rtile { position: relative; display: flex; flex-direction: column; justify-content: space-between; aspect-ratio: 1 / 1; padding: 12px 14px;
@@ -179,21 +179,6 @@ div.hp-root > h2 { margin: 4px 4px 10px; }
 .rtile.heating .hum { background: rgba(255,255,255,.16); color: var(--hp-heat-fg); }
 .rtile.off { background: var(--hp-off-bg); color: var(--hp-text2); }
 .rtile .left { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 10px; background: var(--hp-heat-fg); color: #111; }
-/* Bedienung in derselben Kachel: Soll − / +, Zeitplan, Aus – Boost nur über die Boost-Karte */
-.rtile.ctl { cursor: default; border-color: var(--tile-fg); }
-.rtile.ctl h3 { margin: 0; color: var(--hp-text); }
-.x { border: 0; background: rgba(127,127,127,.16); color: var(--hp-text2); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; flex: none; }
-.setp { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
-.setp .rnd { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--tile-fg); background: var(--tile-bg); color: var(--tile-fg);
-  font-size: 20px; line-height: 1; cursor: pointer; flex: none; padding: 0; }
-.setp .rnd:disabled { opacity: .35; cursor: default; }
-.setp .val { font-size: 32px; font-weight: 700; color: var(--tile-fg); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
-.setp .val small { font-size: 14px; font-weight: 600; }
-.acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.acts .btn { justify-content: center; padding: 6px 4px; font-size: 12px; }
-.acts .btn.on { border-color: var(--hp-blue); color: var(--hp-blue); }
-.tmsg { font-size: 11px; color: var(--hp-text2); min-height: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tmsg.err { color: var(--error-color, #c62828); }
 `;
 
 class HeatPilotRoomsCard extends HPBase {
@@ -206,30 +191,16 @@ class HeatPilotRoomsCard extends HPBase {
   getLayoutOptions() { return { grid_columns: this.roomCount() === 1 ? 2 : 4, grid_rows: "auto" }; }
   renderKey(hass) {
     const es = roomEntities(hass, this.config || {});
-    return JSON.stringify([es.map((e) => [hass.states[e].state, hass.states[e].attributes]), !!hass.states[COMMAND], this._sel, this._sp, this._msg]);
+    return JSON.stringify(es.map((e) => [hass.states[e].state, hass.states[e].attributes]));
   }
   // Anzeige wie im Reiter „Heizen“
   tile(r) {
     const off = r.mode === "off", heating = !off && (r.action === "heating" || (r.valve || 0) > 0);
     const hum = r.humidity !== null && r.humidity !== undefined ? `<span class="hum">${ICON.drop}${fmt(r.humidity, 0)} %</span>` : "<span></span>";
     const right = r.boost ? `<span class="left">noch ${leftText(r.boost.left_min || 0)}</span>` : off ? `<span class="pw">${ICON.off}</span>` : "";
-    return `<div class="rtile ${off ? "off" : heating ? "heating" : "idle"}" data-open="${esc(r.entity)}" role="button" tabindex="0">` +
+    return `<div class="rtile ${off ? "off" : heating ? "heating" : "idle"}" data-more="${esc(r.climate)}" role="button" tabindex="0">` +
       `<div class="top">${hum}${right}</div><div><div class="big">${bigNumber(r.temp, "°")}</div><h3>${esc(r.name)}</h3>` +
       `<div class="state">${esc(roomState(r))}</div></div></div>`;
-  }
-  // Bedienung in derselben Kachel – gleiche Größe, nichts springt
-  ctlTile(r) {
-    const lim = (this._hass.states[BOOST] || {}).attributes || {};
-    const sp = this._sp ?? r.target, c = tileColors(r.mode === "off" ? null : sp, r.mode), m = this._msg || {};
-    const head = `<div class="top"><h3>${esc(r.name)}</h3><button class="x" data-close aria-label="schließen">✕</button></div>`;
-    if (r.ems) return `<div class="rtile ctl" style="--tile-fg:var(--hp-border)">${head}<div class="state">Heizkreis von EMS-ESP – nur Anzeige</div><span></span></div>`;
-    return `<div class="rtile ctl" style="--tile-fg:${c.fg};--tile-bg:${c.bg}">${head}` +
-      `<div class="setp"><button class="rnd" data-d="-0.5" aria-label="kälter"${sp <= (lim.temp_min ?? 5) ? " disabled" : ""}>−</button>` +
-      `<span class="val">${sp === null || sp === undefined ? "–" : bigNumber(sp, " °C")}</span>` +
-      `<button class="rnd" data-d="0.5" aria-label="wärmer"${sp >= (lim.temp_max ?? 25) ? " disabled" : ""}>+</button></div>` +
-      `<div><div class="acts"><button class="btn${r.mode === "auto" && !r.boost ? " on" : ""}" data-a="schedule">${ICON.sched}Zeitplan</button>` +
-      `<button class="btn${r.mode === "off" ? " on" : ""}" data-a="off">${ICON.off}Aus</button></div>` +
-      `<div class="tmsg${m.err ? " err" : ""}">${esc(m.text || roomState(r))}</div></div></div>`;
   }
   render() {
     const card = this.root(ROOMS_CSS, this.config.card ? "ha-card" : "div"), hass = this._hass;
@@ -238,31 +209,10 @@ class HeatPilotRoomsCard extends HPBase {
     const cols = this.config.columns || (k <= 4 ? k : k <= 6 ? 3 : 4);
     card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") +
       `<div class="grid" style="--cols:${cols};--ncols:${this.config.columns || Math.min(k, 2)}">` +
-      rooms.map((r) => (r.entity === this._sel ? this.ctlTile(r) : this.tile(r))).join("") + "</div>";
-    const on = (sel, fn) => card.querySelectorAll(sel).forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); fn(el); }));
-    on("[data-open]", (el) => this.select(el.dataset.open));
-    on("[data-close]", () => this.select(null));
-    const r = rooms.find((x) => x.entity === this._sel);
-    if (!r) return;
-    on("[data-d]", (el) => this.step(r, Number(el.dataset.d)));
-    on("[data-a]", (el) => this.command(el.dataset.a === "off" ? { a: "mode", rooms: [r.climate], mode: "off" }
-      : { a: "schedule", rooms: [r.climate] }, this.report()));
-  }
-  select(entity) {
-    clearTimeout(this._t);
-    this._sel = entity; this._sp = null; this._msg = null; this._key = null; this.render();
-  }
-  // −/+: erst nach 1,5 s Ruhe senden – mehrmaliges Tippen wird ein Befehl
-  step(r, d) {
-    const lim = (this._hass.states[BOOST] || {}).attributes || {};
-    const base = this._sp ?? r.target ?? 20;
-    this._sp = Math.min(Math.max(Math.round((base + d) * 2) / 2, lim.temp_min ?? 5), lim.temp_max ?? 25);
-    this._key = null; this.render();
-    clearTimeout(this._t);
-    this._t = setTimeout(async () => {
-      await this.command({ a: "temp", room: r.climate, temp: this._sp }, this.report());
-      this._sp = null; this._key = null; this.render();
-    }, 1500);
+      rooms.map((r) => this.tile(r)).join("") + "</div>";
+    // Antippen: das Pop-up von Home Assistant für das Thermostat (Soll, Betriebsart, Verlauf)
+    card.querySelectorAll("[data-more]").forEach((el) => el.addEventListener("click", () =>
+      this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.more }, bubbles: true, composed: true }))));
   }
 }
 
@@ -278,6 +228,8 @@ const BOOST_CSS = `
 .seg button { flex: 1; padding: 7px 0; font-size: 13px; border: 0; border-right: 1px solid var(--hp-border); background: transparent; cursor: pointer; color: var(--hp-text); }
 .seg button:last-child { border-right: 0; } .seg button.on { background: var(--hp-blue); color: #fff; }
 .go { width: 100%; justify-content: center; margin-top: 12px; padding: 10px; font-size: 15px; }
+.acts3 { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; margin-top: 8px; }
+.acts3 .btn { justify-content: center; padding: 7px 4px; font-size: 12px; }
 .run { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hp-border); }
 .run:last-of-type { border-bottom: 0; }
 .bar { height: 4px; background: var(--hp-border); border-radius: 2px; margin-top: 4px; width: 160px; max-width: 100%; }
@@ -302,13 +254,13 @@ class HeatPilotBoostCard extends HPBase {
       Math.floor(Date.now() / 60000), !!hass.states[COMMAND], this._msg]);
   }
   render() {
-    const card = this.root(BOOST_CSS), hass = this._hass, s = hass.states[BOOST];
-    if (!s) { card.innerHTML = `<h2>Boost</h2><p class="muted">sensor.heatpilot_boost fehlt – HeatPilot-Add-on ab 0.56 nötig.</p>`; return; }
+    const card = this.root(BOOST_CSS, this.config.card ? "ha-card" : "div"), hass = this._hass, s = hass.states[BOOST];
+    if (!s) { card.innerHTML = `<p class="muted">sensor.heatpilot_boost fehlt – HeatPilot-Add-on ab 0.56 nötig.</p>`; return; }
     const a = s.attributes || {}, running = a.rooms || [];
     const rooms = roomEntities(hass, this.config).map((e) => roomOf(hass, e)).filter((r) => !r.ems);
     const ids = rooms.map((r) => r.climate);
     this._b.rooms = this._b.rooms.filter((c) => ids.includes(c));
-    let h = `<h2>${esc(this.config.title || "Boost")}${running.length ? '<span class="pill">läuft</span>' : ""}</h2>`;
+    let h = this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "";
     for (const r of running) {
       const total = Math.max(r.left_min, 1), done = r.minutes ? Math.max(0, 1 - r.left_min / r.minutes) : 0.5;
       h += `<div class="run"><div><b>${esc(r.room)}</b> · ${fmt(r.temp)} °C<div class="muted">noch ${leftText(total)} · bis ${clock(r.until)}</div>` +
@@ -316,7 +268,7 @@ class HeatPilotBoostCard extends HPBase {
     }
     if (running.length) {
       h += `<div class="row"><button class="btn" data-extend>+30 min</button><button class="btn" data-stopall>Alle stoppen</button></div>`;
-      if (!this._more) h += `<button class="link" data-more>Weitere Räume boosten ›</button>`;
+      if (!this._more) h += `<button class="link" data-more>Weitere Räume bedienen ›</button>`;
     }
     if (!running.length || this._more) h += this.form(rooms, a);
     const m = this._msg || {};
@@ -331,9 +283,13 @@ class HeatPilotBoostCard extends HPBase {
       `<button class="chip${all ? " on" : ""}" data-all>Alle</button></div>` +
       `<div class="lbl">Temperatur</div><div class="step" style="--tile-fg:${c.fg}"><button data-t="-0.5"${b.temp <= (a.temp_min ?? 5) ? " disabled" : ""}>−</button>` +
       `<span>${fmt(b.temp)} °C</span><button data-t="0.5"${b.temp >= (a.temp_max ?? 25) ? " disabled" : ""}>+</button></div>` +
-      `<div class="lbl">Dauer</div><div class="seg">${DURATIONS.map((m) => `<button data-m="${m}" class="${b.minutes === m ? "on" : ""}">${leftText(m).replace(":00 h", " h")}</button>`).join("")}</div>` +
+      `<div class="lbl">Dauer (Boost)</div><div class="seg">${DURATIONS.map((m) => `<button data-m="${m}" class="${b.minutes === m ? "on" : ""}">${leftText(m).replace(":00 h", " h")}</button>`).join("")}</div>` +
       `<div class="muted" style="margin-top:6px">bis ${clock(end.toISOString())} · danach wieder Zeitplan</div>` +
-      `<button class="btn primary go" data-go${b.rooms.length ? "" : " disabled"}>${ICON.boost}Boost starten</button>`;
+      `<button class="btn primary go" data-go${b.rooms.length ? "" : " disabled"}>${ICON.boost}Boost starten</button>` +
+      // ohne Zeitlimit für die gewählten Räume – wie Zeitplan und Ausschalten im Reiter „Heizen“
+      `<div class="acts3"><button class="btn" data-set${b.rooms.length ? "" : " disabled"}>Soll ${fmt(b.temp)} °C setzen</button>` +
+      `<button class="btn" data-sched${b.rooms.length ? "" : " disabled"}>${ICON.sched}Zeitplan</button>` +
+      `<button class="btn" data-off${b.rooms.length ? "" : " disabled"}>${ICON.off}Aus</button></div>`;
   }
   save() { store.set("hp-boost", this._b); this._key = null; this.render(); }
   wire(card, running, a) {
@@ -351,6 +307,11 @@ class HeatPilotBoostCard extends HPBase {
       const res = await this.command({ a: "boost", rooms: b.rooms, temp: b.temp, minutes: b.minutes }, msg());
       if (res && res.ok) { this._more = false; this._key = null; }
     });
+    on("[data-set]", async () => {  // Soll ohne Zeitlimit: ein Befehl je Raum
+      for (const room of b.rooms) await this.command({ a: "temp", room, temp: b.temp }, msg());
+    });
+    on("[data-sched]", () => this.command({ a: "schedule", rooms: b.rooms }, msg()));
+    on("[data-off]", () => this.command({ a: "mode", rooms: b.rooms, mode: "off" }, msg()));
     on("[data-stop]", (el) => this.command({ a: "schedule", rooms: [el.dataset.stop] }, msg()));
     on("[data-stopall]", () => this.command({ a: "schedule", rooms: running.map((r) => r.climate) }, msg()));
     on("[data-extend]", async () => {  // je Temperatur ein Befehl: Rest + 30 min
@@ -373,7 +334,7 @@ const toMs = (v, unit) => v === null || v === undefined || Number.isNaN(Number(v
 const WX_DIR = ["N", "NO", "O", "SO", "S", "SW", "W", "NW"];
 const WX_SVG = (d) => `<svg viewBox="0 0 48 48" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const WX_SUN = '<circle cx="18" cy="18" r="7" stroke="var(--hp-warn)"/><path stroke="var(--hp-warn)" d="M18 4v3M18 29v3M4 18h3M29 18h3M8 8l2 2M26 26l2 2M8 28l2-2M26 10l2-2"/>';
-const WX_CLOUD = '<path stroke="var(--hp-grey)" fill="var(--card-background-color, #fff)" d="M14 38h22a8 8 0 0 0 0-16 11 11 0 0 0-21-2 9 9 0 0 0-1 18z"/>';
+const WX_CLOUD = '<path stroke="#9aa0a6" fill="#e3e6ea" d="M14 38h22a8 8 0 0 0 0-16 11 11 0 0 0-21-2 9 9 0 0 0-1 18z"/>';
 const WX_RAIN = '<path stroke="var(--hp-blue)" d="M18 42l-2 4M26 42l-2 4M34 42l-2 4"/>';
 function wxIcon(c) {
   if (c === "sunny") return WX_SVG('<circle cx="24" cy="24" r="9" stroke="var(--hp-warn)"/><path stroke="var(--hp-warn)" d="M24 6v5M24 37v5M6 24h5M37 24h5M11 11l3.5 3.5M33.5 33.5L37 37M11 37l3.5-3.5M33.5 14.5L37 11"/>');
@@ -452,12 +413,12 @@ class HeatPilotWeatherCard extends HPBase {
     return `<div class="wrow" style="--c:var(${color})"><span class="wk"><b>${name}</b><span class="muted">${span}${u ? " " + u : ""}${gust}</span></span><span class="bars">${bars}</span></div>`;
   }
   render() {
-    const card = this.root(WX_CSS), s = this._hass.states[this.config.entity];
+    const card = this.root(WX_CSS, this.config.card ? "ha-card" : "div"), s = this._hass.states[this.config.entity];
     if (!s) { card.innerHTML = `<p class="muted">${esc(this.config.entity)} nicht gefunden.</p>`; return; }
     const a = s.attributes || {}, hs = this.hours(), t = hs.map((h) => h.temp).filter((v) => v != null);
     const wind = toMs(a.wind_speed, a.wind_speed_unit), gust = toMs(a.wind_gust_speed, a.wind_speed_unit), brg = a.wind_bearing;
     const chip = (k, v) => v ? `<span class="wchip"><span class="muted">${k}</span> ${v}</span>` : "";
-    let h = `<h2>${esc(this.config.title || "Wetter")}</h2><div class="now"><span class="icon">${wxIcon(s.state)}</span>` +
+    let h = `${this.config.title ? `<h2>${esc(this.config.title)}</h2>` : ""}<div class="now"><span class="icon">${wxIcon(s.state)}</span>` +
       `<span class="tnow">${fmt(a.temperature)}<small> ${esc(a.temperature_unit || "°C")}</small></span>` +
       `<span class="cond"><b>${esc(WX_COND[s.state] || s.state)}</b><span class="muted">${a.apparent_temperature != null ? `gefühlt ${fmt(a.apparent_temperature, 0)} °C` : ""}` +
       `${t.length ? `${a.apparent_temperature != null ? " · " : ""}24 h ${fmt(Math.min(...t), 0)} bis ${fmt(Math.max(...t), 0)} °C` : ""}</span></span></div>` +
@@ -525,8 +486,8 @@ customElements.define("heatpilot-boost-card", HeatPilotBoostCard);
 customElements.define("heatpilot-weather-card", HeatPilotWeatherCard);
 window.customCards = window.customCards || [];
 window.customCards.push(
-  { type: "heatpilot-rooms-card", name: "HeatPilot Räume", description: "Raumkacheln wie in HeatPilot – antippen zum Bedienen" },
-  { type: "heatpilot-boost-card", name: "HeatPilot Boost", description: "Boost ohne Pop-up: Räume, Temperatur, Dauer" },
+  { type: "heatpilot-rooms-card", name: "HeatPilot Räume", description: "Raumkacheln wie in HeatPilot – antippen öffnet das Thermostat" },
+  { type: "heatpilot-boost-card", name: "HeatPilot Steuerung", description: "Boost, Soll, Zeitplan und Aus für die gewählten Räume" },
   { type: "heatpilot-weather-card", name: "HeatPilot Wetter", description: "Wetter jetzt und 24 Stunden als Stundenbalken" },
 );
 console.info(`%c HeatPilot Card ${HP_VERSION} `, "background:#9a4e00;color:#fff;border-radius:4px");
