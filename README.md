@@ -26,7 +26,7 @@ Wetter-Entität mit stündlicher Vorhersage.
 ```yaml
 type: custom:heatpilot-rooms-card
 # entities:            # optional – sonst alle sensor.heatpilot_raum_* in der Reihenfolge von HeatPilot
-#   - sensor.heatpilot_raum_wohnzimmer
+#   - sensor.heatpilot_raum_wohnzimmer   # nach dem Raumnamen in HeatPilot (Add-on ab 0.56.3)
 # columns: 2           # optional – Spalten auf breiten Dashboards
 # title: Räume         # optional
 ```
