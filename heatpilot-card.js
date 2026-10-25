@@ -43,10 +43,10 @@ const ICON = {
 
 // Farben der HeatPilot-Seite; Fläche und Schrift kommen vom Home-Assistant-Theme
 const BASE_CSS = `
-:host { --hp-heat-bg: #f8e1c2; --hp-heat-fg: #9a4e00; --hp-off-bg: rgba(127,127,127,.10); --hp-blue: #2a78d6;
+:host { --hp-heat-bg: #f8e1c2; --hp-heat-fg: #9a4e00; --hp-off-bg: #ecebe8; --hp-blue: #2a78d6;
   --hp-orange: #eb6834; --hp-purple: #8e5bd0; --hp-grey: #8a8984; --hp-warn: #c98500; --hp-chip: rgba(127,127,127,.10);
   --hp-text: var(--primary-text-color); --hp-text2: var(--secondary-text-color); --hp-border: var(--divider-color, rgba(127,127,127,.25)); }
-:host([dark]) { --hp-heat-bg: #4a2d0c; --hp-heat-fg: #f5a729; --hp-off-bg: rgba(255,255,255,.04); --hp-blue: #3987e5; --hp-orange: #d95926; }
+:host([dark]) { --hp-heat-bg: #4a2d0c; --hp-heat-fg: #f5a729; --hp-off-bg: #161615; --hp-blue: #3987e5; --hp-orange: #d95926; }
 ha-card { padding: 14px 16px; container-type: inline-size; }
 h2 { margin: 0 0 10px; font-size: 17px; font-weight: 600; color: var(--hp-text); display: flex; align-items: center; gap: 8px; }
 .muted { color: var(--hp-text2); font-size: 12px; }
@@ -97,12 +97,15 @@ class HPBase extends HTMLElement {
     this.render();
   }
   get hass() { return this._hass; }
-  root(css) {
-    if (!this.shadowRoot) {
-      this.attachShadow({ mode: "open" });
-      this.shadowRoot.innerHTML = `<style>${BASE_CSS}${css}</style><ha-card></ha-card>`;
+  // tag "div": ohne Kartenrahmen, direkt auf dem Hintergrund des Dashboards (Raumkacheln)
+  root(css, tag = "ha-card") {
+    if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+    let el = this.shadowRoot.querySelector(".hp-root");
+    if (!el || el.tagName.toLowerCase() !== tag) {
+      this.shadowRoot.innerHTML = `<style>${BASE_CSS}${css}</style><${tag} class="hp-root"></${tag}>`;
+      el = this.shadowRoot.querySelector(".hp-root");
     }
-    return this.shadowRoot.querySelector("ha-card");
+    return el;
   }
   canCommand() { return !!this._hass.states[COMMAND]; }
   // Befehl senden, Ergebnis abwarten (bis 20 s) und in .msg melden
@@ -130,7 +133,9 @@ class HPBase extends HTMLElement {
 // ------------------------------------------------------------------ Räume
 const ROOMS_CSS = `
 .grid { display: grid; grid-template-columns: repeat(var(--ncols, 2), minmax(0, 1fr)); gap: 10px; }
-ha-card.solo { padding: 0; background: none; border: none; box-shadow: none; }  /* ein Raum: die Kachel ist die Karte */
+div.hp-root { display: block; container-type: inline-size; }  /* ohne Kartenrahmen: Kacheln direkt auf dem Hintergrund */
+div.hp-root > h2 { margin: 4px 4px 10px; }
+div.hp-root .panel { background: var(--ha-card-background, var(--card-background-color)); }
 @container (min-width: 560px) { .grid { grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); } }
 .rtile { position: relative; display: flex; flex-direction: column; justify-content: space-between; aspect-ratio: 1 / 1; padding: 12px 14px;
   border-radius: 16px; border: 1px solid var(--hp-border); background: var(--card-background-color, transparent); cursor: pointer;
@@ -151,7 +156,7 @@ ha-card.solo { padding: 0; background: none; border: none; box-shadow: none; }  
 .rtile .left { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 10px; background: var(--hp-heat-fg); color: #111; }
 .panel { margin-top: 12px; border: 1px solid var(--hp-border); border-radius: 14px; padding: 12px 14px; }
 .ph { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.ph b { font-size: 16px; }
+.ph b { font-size: 16px; color: var(--hp-text); }
 .setp { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 12px 0; }
 .setp .rnd { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--tile-fg); background: var(--tile-bg); color: var(--tile-fg);
   font-size: 24px; line-height: 1; cursor: pointer; }
@@ -217,11 +222,10 @@ class HeatPilotRoomsCard extends HPBase {
       `<div class="msg" id="msg"></div></div>`;
   }
   render() {
-    const card = this.root(ROOMS_CSS), hass = this._hass;
+    const card = this.root(ROOMS_CSS, this.config.card ? "ha-card" : "div"), hass = this._hass;
     const rooms = roomEntities(hass, this.config).map((e) => roomOf(hass, e)), k = rooms.length;
     if (!k) { card.innerHTML = `<p class="muted">Keine HeatPilot-Räume gefunden – HeatPilot-Add-on ab 0.56 nötig.</p>`; return; }
     const sel = rooms.find((r) => r.entity === this._sel);
-    card.classList.toggle("solo", k === 1 && !this.config.title && !sel);
     const msg = this.shadowRoot.getElementById("msg");
     const keepMsg = msg && msg.textContent ? [msg.className, msg.textContent] : null;
     card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") +

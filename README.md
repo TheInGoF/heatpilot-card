@@ -29,6 +29,7 @@ type: custom:heatpilot-rooms-card
 #   - sensor.heatpilot_raum_wohnzimmer   # nach dem Raumnamen in HeatPilot (Add-on ab 0.56.3)
 # columns: 2           # optional – Spalten auf breiten Dashboards
 # title: Räume         # optional
+# card: true           # optional – Kacheln in einem Kartenrahmen statt direkt auf dem Hintergrund
 ```
 
 ```yaml
