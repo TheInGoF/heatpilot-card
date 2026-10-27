@@ -10,6 +10,7 @@ HeatPilot-Seite, ohne card-mod, ohne weitere Abhängigkeiten. Bedienen geht auch
 | `custom:heatpilot-rooms-card` | Raumkacheln wie im Reiter „Heizen“ (Ist, Luftfeuchte, Zustand, Farben), direkt auf dem Hintergrund. Antippen öffnet das Thermostat-Pop-up von Home Assistant |
 | `custom:heatpilot-control-card` | „HeatPilot Steuerung“ für mehrere Räume auf einmal – wie die Leiste im Reiter „Heizen“: Räume wählen, Temperatur, Boost mit Dauer („bis 18:44“), Zeitplan, Aus; laufende Boosts mit Restzeit, Stopp, +30 min |
 | `custom:heatpilot-weather-card` | Wetter jetzt (Symbol, Temperatur, gefühlt, Wind mit Richtung und Böen, Feuchte, Druck, UV, Wolken) und die nächsten 24 Stunden als Stundenbalken |
+| `custom:heatpilot-mode-card` | „Nur jetzt“ für Ausnahmen: **Nacht**, **Anwesend**, **Abwesend** für das ganze Haus – gilt bis zum nächsten Schaltpunkt oder bis HeatPilot erkennt, dass die Lage vorbei ist; der aktive Knopf beendet es (Add-on ab 0.62) |
 
 ## Voraussetzung
 
@@ -21,7 +22,7 @@ Wetter-Entität mit stündlicher Vorhersage.
 
 1. HACS → ⋮ → **Benutzerdefinierte Repositories** → `https://github.com/TheInGoF/heatpilot-card`, Typ **Dashboard**.
 2. „HeatPilot Card“ suchen, herunterladen, Seite neu laden.
-3. Dashboard bearbeiten → Karte hinzufügen → Reiter „Nach Karte“ → „HeatPilot“ suchen. Alle drei Karten haben einen
+3. Dashboard bearbeiten → Karte hinzufügen → Reiter „Nach Karte“ → „HeatPilot“ suchen. Alle Karten haben einen
    visuellen Editor: Räume (leer = alle), Titel, Spalten bzw. die Wetter-Entität. Alle Karten stehen ohne
    Kartenrahmen direkt auf dem Hintergrund; `card: true` gibt ihnen den Rahmen zurück.
 
@@ -45,12 +46,16 @@ type: custom:heatpilot-weather-card
 entity: weather.wetter_lokal
 ```
 
+```yaml
+type: custom:heatpilot-mode-card   # Add-on ab 0.62, liest sensor.heatpilot_modus
+```
+
 ## So bedienen die Karten
 
 Die Karten schreiben einen Befehl als JSON in `input_text.heatpilot_befehl`, z. B.
 `{"a": "boost", "rooms": ["climate.wohnzimmer"], "temp": 22, "minutes": 120}`. HeatPilot führt ihn aus wie die
 Knöpfe im Reiter „Heizen“, leert das Feld und meldet das Ergebnis in `sensor.heatpilot_boost` (Attribut `last`) –
-die Karte zeigt Fehler direkt unter den Knöpfen. Mögliche Befehle: `boost`, `schedule`, `mode`.
+die Karte zeigt Fehler direkt unter den Knöpfen. Mögliche Befehle: `boost`, `schedule`, `mode`, `override` (`{"a": "override", "mode": "nacht"}`, `aus` beendet).
 
 ## Wer bedient was
 
@@ -58,4 +63,5 @@ die Karte zeigt Fehler direkt unter den Knöpfen. Mögliche Befehle: `boost`, `s
 |---|---|
 | Einen Raum ansehen und einstellen (Soll, Betriebsart, Verlauf) | Raumkachel antippen → Thermostat-Pop-up von Home Assistant |
 | Mehrere Räume auf einmal: Boost, Zeitplan, Aus | HeatPilot Steuerung |
+| Ausnahme für das ganze Haus: früh ins Bett, nachts los, spät heim | HeatPilot Nur jetzt |
 | Pause, Einstellungen | HeatPilot-Seite (Admins) |

@@ -1,18 +1,20 @@
 /* HeatPilot Card – Karten für Home Assistant zum Add-on „EMS HeatPilot“ (ab Add-on 0.56).
  *
- * Drei Karten im Stil der HeatPilot-Seite, ohne card-mod und ohne Abhängigkeiten:
+ * Vier Karten im Stil der HeatPilot-Seite, ohne card-mod und ohne Abhängigkeiten:
  *   custom:heatpilot-rooms-card    Raumkacheln wie im Reiter „Heizen“; Antippen öffnet das Thermostat-Pop-up
  *   custom:heatpilot-control-card  Mehrere Räume auf einmal: Boost mit Dauer, Zeitplan, Aus – laufende Boosts mit Stopp
  *   custom:heatpilot-weather-card  Wetter jetzt und die nächsten 24 Stunden als Stundenbalken
+ *   custom:heatpilot-mode-card     Nur jetzt: Nacht, Anwesend, Abwesend für das ganze Haus (ab Add-on 0.62)
  *
  * Daten: sensor.heatpilot_raum_* und sensor.heatpilot_boost (setzt das Add-on), die Wetter-Entität.
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.3.0";
+const HP_VERSION = "0.4.0";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
+const MODE = "sensor.heatpilot_modus";
 const PHASE = { komfort: "Komfort", nacht: "Nacht", abwesend: "Abwesend", vorheizen: "Vorheizen", urlaub: "Urlaub", aus: "Aus" };
 
 const fmt = (v, d = 1) => v === null || v === undefined || Number.isNaN(Number(v)) ? "–"
@@ -437,6 +439,37 @@ class HeatPilotWeatherCard extends HPBase {
 
 // ------------------------------------------------------------------ Editoren (visueller Karten-Editor)
 // ha-form von Home Assistant mit einem Schema je Karte; leere Felder fallen aus der Konfiguration
+// ------------------------------------------------------------------ Nur jetzt (Override)
+// Drei Knöpfe für Ausnahmen (nachts zur Arbeit, spät heim, früh ins Bett): gilt bis zum nächsten Schaltpunkt bzw. bis
+// HeatPilot erkennt, dass die Lage vorbei ist; der aktive Knopf beendet es. Stand aus sensor.heatpilot_modus.
+const MODES = [["nacht", "Nacht", "M12 3a7 7 0 1 0 9 9 9 9 0 1 1-9-9z"], ["anwesend", "Anwesend", "M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"],
+  ["abwesend", "Abwesend", "M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"]];
+const MODE_CSS = `
+.modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.mode { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 14px; border-radius: 16px;
+  border: 1px solid var(--hp-border); background: var(--ha-card-background, var(--card-background-color, transparent)); cursor: pointer; text-align: left; }
+.mode svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.mode b { font-size: 14px; } .mode.on { background: var(--hp-blue); border-color: transparent; color: #fff; }
+.mode.on .muted { color: rgba(255,255,255,.85); }
+`;
+class HeatPilotModeCard extends HPBase {
+  static getConfigElement() { return document.createElement("heatpilot-mode-card-editor"); }
+  static getStubConfig() { return {}; }
+  getCardSize() { return 2; }
+  renderKey(hass) { const s = hass.states[MODE]; return JSON.stringify([s && s.state, s && s.attributes.until, this._msg]); }
+  render() {
+    const card = this.root(MODE_CSS, this.config.card ? "ha-card" : "div"), s = this._hass.states[MODE];
+    if (!s) { card.innerHTML = `<p class="muted">sensor.heatpilot_modus fehlt – HeatPilot-Add-on ab 0.62 nötig.</p>`; return; }
+    const cur = s.state, until = s.attributes.until, m = this._msg || {};
+    card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") + `<div class="modes">` +
+      MODES.map(([k, t, d]) => `<button class="mode${cur === k ? " on" : ""}" data-mode="${k}"><svg viewBox="0 0 24 24"><path d="${d}"/></svg>` +
+        `<b>${t}</b><span class="muted">${cur === k ? `bis ${clock(until)} · tippen beendet` : "nur jetzt"}</span></button>`).join("") +
+      `</div><div class="msg${m.err ? " err" : " muted"}">${esc(m.text || "")}</div>`;
+    card.querySelectorAll("[data-mode]").forEach((el) => el.addEventListener("click", () =>
+      this.command({ a: "override", mode: el.dataset.mode === cur ? "aus" : el.dataset.mode }, this.report())));
+  }
+}
+
 class HPEditor extends HTMLElement {
   setConfig(config) { this._config = { ...config }; this.render(); }
   set hass(hass) { this._hass = hass; this.render(); }
@@ -473,12 +506,17 @@ class RoomsCardEditor extends HPEditor {
 class ControlCardEditor extends HPEditor {
   schema(hass) { return [roomSelector(hass, "Räume zur Auswahl – leer = alle"), TITLE]; }
 }
+class ModeCardEditor extends HPEditor {
+  schema() { return [TITLE, { name: "card", label: "Mit Kartenrahmen", selector: { boolean: {} } }]; }
+}
 class WeatherCardEditor extends HPEditor {
   schema() { return [{ name: "entity", label: "Wetter-Entität", required: true, selector: { entity: { domain: "weather" } } }, TITLE]; }
 }
 customElements.define("heatpilot-rooms-card-editor", RoomsCardEditor);
 customElements.define("heatpilot-control-card-editor", ControlCardEditor);
 customElements.define("heatpilot-weather-card-editor", WeatherCardEditor);
+customElements.define("heatpilot-mode-card-editor", ModeCardEditor);
+customElements.define("heatpilot-mode-card", HeatPilotModeCard);
 customElements.define("heatpilot-rooms-card", HeatPilotRoomsCard);
 customElements.define("heatpilot-control-card", HeatPilotControlCard);
 customElements.define("heatpilot-weather-card", HeatPilotWeatherCard);
@@ -487,5 +525,6 @@ window.customCards.push(
   { type: "heatpilot-rooms-card", name: "HeatPilot Räume", description: "Raumkacheln wie in HeatPilot – antippen öffnet das Thermostat" },
   { type: "heatpilot-control-card", name: "HeatPilot Steuerung", description: "Mehrere Räume: Boost, Zeitplan, Aus" },
   { type: "heatpilot-weather-card", name: "HeatPilot Wetter", description: "Wetter jetzt und 24 Stunden als Stundenbalken" },
+  { type: "heatpilot-mode-card", name: "HeatPilot Nur jetzt", description: "Nacht, Anwesend, Abwesend – bis zum nächsten Schaltpunkt" },
 );
 console.info(`%c HeatPilot Card ${HP_VERSION} `, "background:#9a4e00;color:#fff;border-radius:4px");
