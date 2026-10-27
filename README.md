@@ -10,6 +10,7 @@ HeatPilot-Seite, ohne card-mod, ohne weitere Abhängigkeiten. Bedienen geht auch
 | `custom:heatpilot-rooms-card` | Raumkacheln wie im Reiter „Heizen“ (Ist, Luftfeuchte, Zustand, Farben), direkt auf dem Hintergrund. Antippen öffnet das Thermostat-Pop-up von Home Assistant |
 | `custom:heatpilot-control-card` | „HeatPilot Steuerung“ für mehrere Räume auf einmal – wie die Leiste im Reiter „Heizen“: Räume wählen, Temperatur, Boost mit Dauer („bis 18:44“), Zeitplan, Aus; laufende Boosts mit Restzeit, Stopp, +30 min |
 | `custom:heatpilot-weather-card` | Wetter jetzt (Symbol, Temperatur, gefühlt, Wind mit Richtung und Böen, Feuchte, Druck, UV, Wolken) und die nächsten 24 Stunden als Stundenbalken |
+| `custom:heatpilot-betrieb-card` | Die drei Betriebsschalter wie auf der HeatPilot-Seite: **Räume** (Beobachten · HeatPilot steuert), **Kessel** und **Warmwasser** (Aus · Beobachten · HeatPilot steuert); „HeatPilot steuert“ fragt einmal nach (Add-on ab 0.65) |
 | `custom:heatpilot-mode-card` | „Nur jetzt“ für Ausnahmen: **Nacht**, **Anwesend**, **Abwesend** für das ganze Haus – gilt bis zum nächsten Schaltpunkt oder bis HeatPilot erkennt, dass die Lage vorbei ist; der aktive Knopf beendet es (Add-on ab 0.62) |
 
 ## Voraussetzung
@@ -50,12 +51,16 @@ entity: weather.wetter_lokal
 type: custom:heatpilot-mode-card   # Add-on ab 0.62, liest sensor.heatpilot_modus
 ```
 
+```yaml
+type: custom:heatpilot-betrieb-card   # Add-on ab 0.65, liest sensor.heatpilot_betrieb
+```
+
 ## So bedienen die Karten
 
 Die Karten schreiben einen Befehl als JSON in `input_text.heatpilot_befehl`, z. B.
 `{"a": "boost", "rooms": ["climate.wohnzimmer"], "temp": 22, "minutes": 120}`. HeatPilot führt ihn aus wie die
 Knöpfe im Reiter „Heizen“, leert das Feld und meldet das Ergebnis in `sensor.heatpilot_boost` (Attribut `last`) –
-die Karte zeigt Fehler direkt unter den Knöpfen. Mögliche Befehle: `boost`, `schedule`, `mode`, `override` (`{"a": "override", "mode": "nacht"}`, `aus` beendet).
+die Karte zeigt Fehler direkt unter den Knöpfen. Mögliche Befehle: `boost`, `schedule`, `mode`, `override`, `betrieb` (`{"a": "betrieb", "what": "kessel", "mode": "trocken"}`) (`{"a": "override", "mode": "nacht"}`, `aus` beendet).
 
 ## Wer bedient was
 
@@ -64,4 +69,5 @@ die Karte zeigt Fehler direkt unter den Knöpfen. Mögliche Befehle: `boost`, `s
 | Einen Raum ansehen und einstellen (Soll, Betriebsart, Verlauf) | Raumkachel antippen → Thermostat-Pop-up von Home Assistant |
 | Mehrere Räume auf einmal: Boost, Zeitplan, Aus | HeatPilot Steuerung |
 | Ausnahme für das ganze Haus: früh ins Bett, nachts los, spät heim | HeatPilot Nur jetzt |
+| Betriebsschalter Räume, Kessel, Warmwasser | HeatPilot Betrieb |
 | Pause, Einstellungen | HeatPilot-Seite (Admins) |

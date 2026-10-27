@@ -1,20 +1,22 @@
 /* HeatPilot Card – Karten für Home Assistant zum Add-on „EMS HeatPilot“ (ab Add-on 0.56).
  *
- * Vier Karten im Stil der HeatPilot-Seite, ohne card-mod und ohne Abhängigkeiten:
+ * Fünf Karten im Stil der HeatPilot-Seite, ohne card-mod und ohne Abhängigkeiten:
  *   custom:heatpilot-rooms-card    Raumkacheln wie im Reiter „Heizen“; Antippen öffnet das Thermostat-Pop-up
  *   custom:heatpilot-control-card  Mehrere Räume auf einmal: Boost mit Dauer, Zeitplan, Aus – laufende Boosts mit Stopp
  *   custom:heatpilot-weather-card  Wetter jetzt und die nächsten 24 Stunden als Stundenbalken
  *   custom:heatpilot-mode-card     Nur jetzt: Nacht, Anwesend, Abwesend für das ganze Haus (ab Add-on 0.62)
+ *   custom:heatpilot-betrieb-card  Betriebsschalter Räume, Kessel, Warmwasser (ab Add-on 0.65)
  *
  * Daten: sensor.heatpilot_raum_* und sensor.heatpilot_boost (setzt das Add-on), die Wetter-Entität.
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.4.0";
+const HP_VERSION = "0.5.0";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
 const MODE = "sensor.heatpilot_modus";
+const BETRIEB = "sensor.heatpilot_betrieb";
 const PHASE = { komfort: "Komfort", nacht: "Nacht", abwesend: "Abwesend", vorheizen: "Vorheizen", urlaub: "Urlaub", aus: "Aus" };
 
 const fmt = (v, d = 1) => v === null || v === undefined || Number.isNaN(Number(v)) ? "–"
@@ -463,10 +465,47 @@ class HeatPilotModeCard extends HPBase {
     const cur = s.state, until = s.attributes.until, m = this._msg || {};
     card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") + `<div class="modes">` +
       MODES.map(([k, t, d]) => `<button class="mode${cur === k ? " on" : ""}" data-mode="${k}"><svg viewBox="0 0 24 24"><path d="${d}"/></svg>` +
-        `<b>${t}</b><span class="muted">${cur === k ? `bis ${clock(until)} · tippen beendet` : "nur jetzt"}</span></button>`).join("") +
+        `<b>${t}</b><span class="muted">${cur === k ? `bis ${until ? clock(until) : "zum Schaltpunkt"} · tippen beendet` : "nur jetzt"}</span></button>`).join("") +
       `</div><div class="msg${m.err ? " err" : " muted"}">${esc(m.text || "")}</div>`;
     card.querySelectorAll("[data-mode]").forEach((el) => el.addEventListener("click", () =>
       this.command({ a: "override", mode: el.dataset.mode === cur ? "aus" : el.dataset.mode }, this.report())));
+  }
+}
+
+// ------------------------------------------------------------------ Betrieb
+// Die drei Schalter der HeatPilot-Seite: Räume (Beobachten | HeatPilot steuert), Kessel und Warmwasser (Aus |
+// Beobachten | HeatPilot steuert). Speichern wie in den Einstellungen; „HeatPilot steuert“ fragt einmal nach.
+const SW_LABEL = { aus: "Aus", beobachten: "Beobachten", trocken: "Beobachten", heatpilot: "HeatPilot steuert" };
+const SW_ROWS = [["raeume", "Räume"], ["kessel", "Kessel"], ["warmwasser", "Warmwasser"]];
+const SW_ASK = { raeume: "HeatPilot schreibt dann die Solltemperaturen der Räume mit „macht mit“.",
+  kessel: "HeatPilot schreibt dann Vorlauf-Soll und Heizbetrieb des Kessels – nur ohne Regler am Bus. Beobachten geprüft und den Wächter angelegt?",
+  warmwasser: "HeatPilot schreibt dann das Warmwasser-Soll." };
+const BETRIEB_CSS = `
+.sw { margin: 0 0 12px; } .sw:last-of-type { margin-bottom: 0; }
+.sw .lbl { margin: 0 0 6px; }
+.seg2 { display: flex; gap: 4px; padding: 3px; border-radius: 12px; background: var(--hp-chip); }
+.seg2 button { flex: 1 1 0; border: 0; border-radius: 9px; padding: 8px 6px; background: none; cursor: pointer; font-size: 13px; color: var(--hp-text); }
+.seg2 button.on { background: var(--hp-blue); color: #fff; font-weight: 600; }
+`;
+class HeatPilotBetriebCard extends HPBase {
+  static getConfigElement() { return document.createElement("heatpilot-betrieb-card-editor"); }
+  static getStubConfig() { return {}; }
+  getCardSize() { return 3; }
+  renderKey(hass) { const s = hass.states[BETRIEB]; return JSON.stringify([s && s.attributes, this._msg]); }
+  render() {
+    const card = this.root(BETRIEB_CSS, this.config.card ? "ha-card" : "div"), s = this._hass.states[BETRIEB];
+    if (!s) { card.innerHTML = `<p class="muted">sensor.heatpilot_betrieb fehlt – HeatPilot-Add-on ab 0.65 nötig.</p>`; return; }
+    const a = s.attributes || {}, modes = a.modes || {}, m = this._msg || {};
+    card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") + SW_ROWS.map(([k, t]) =>
+      `<div class="sw"><div class="lbl">${t}</div><div class="seg2">${(modes[k] || []).map((v) =>
+        `<button class="${a[k] === v ? "on" : ""}" data-what="${k}" data-mode="${v}">${SW_LABEL[v] || v}</button>`).join("")}</div></div>`).join("") +
+      `<div class="msg${m.err ? " err" : " muted"}">${esc(m.text || "")}</div>`;
+    card.querySelectorAll("[data-what]").forEach((el) => el.addEventListener("click", () => {
+      const { what, mode } = el.dataset;
+      if (a[what] === mode) return;
+      if (mode === "heatpilot" && !confirm(`${SW_ROWS.find((r) => r[0] === what)[1]}: HeatPilot steuert\n\n${SW_ASK[what]}`)) return;
+      this.command({ a: "betrieb", what, mode }, this.report());
+    }));
   }
 }
 
@@ -506,6 +545,9 @@ class RoomsCardEditor extends HPEditor {
 class ControlCardEditor extends HPEditor {
   schema(hass) { return [roomSelector(hass, "Räume zur Auswahl – leer = alle"), TITLE]; }
 }
+class BetriebCardEditor extends HPEditor {
+  schema() { return [TITLE, { name: "card", label: "Mit Kartenrahmen", selector: { boolean: {} } }]; }
+}
 class ModeCardEditor extends HPEditor {
   schema() { return [TITLE, { name: "card", label: "Mit Kartenrahmen", selector: { boolean: {} } }]; }
 }
@@ -517,6 +559,8 @@ customElements.define("heatpilot-control-card-editor", ControlCardEditor);
 customElements.define("heatpilot-weather-card-editor", WeatherCardEditor);
 customElements.define("heatpilot-mode-card-editor", ModeCardEditor);
 customElements.define("heatpilot-mode-card", HeatPilotModeCard);
+customElements.define("heatpilot-betrieb-card-editor", BetriebCardEditor);
+customElements.define("heatpilot-betrieb-card", HeatPilotBetriebCard);
 customElements.define("heatpilot-rooms-card", HeatPilotRoomsCard);
 customElements.define("heatpilot-control-card", HeatPilotControlCard);
 customElements.define("heatpilot-weather-card", HeatPilotWeatherCard);
@@ -526,5 +570,6 @@ window.customCards.push(
   { type: "heatpilot-control-card", name: "HeatPilot Steuerung", description: "Mehrere Räume: Boost, Zeitplan, Aus" },
   { type: "heatpilot-weather-card", name: "HeatPilot Wetter", description: "Wetter jetzt und 24 Stunden als Stundenbalken" },
   { type: "heatpilot-mode-card", name: "HeatPilot Nur jetzt", description: "Nacht, Anwesend, Abwesend – bis zum nächsten Schaltpunkt" },
+  { type: "heatpilot-betrieb-card", name: "HeatPilot Betrieb", description: "Schalter Räume, Kessel, Warmwasser: Aus, Beobachten, HeatPilot steuert" },
 );
 console.info(`%c HeatPilot Card ${HP_VERSION} `, "background:#9a4e00;color:#fff;border-radius:4px");
