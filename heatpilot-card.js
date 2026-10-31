@@ -10,7 +10,7 @@
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.4.0";
+const HP_VERSION = "0.5.0";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
@@ -440,12 +440,17 @@ class HeatPilotWeatherCard extends HPBase {
 // ------------------------------------------------------------------ Editoren (visueller Karten-Editor)
 // ha-form von Home Assistant mit einem Schema je Karte; leere Felder fallen aus der Konfiguration
 // ------------------------------------------------------------------ Nur jetzt (Override)
-// Drei Knöpfe für Ausnahmen (nachts zur Arbeit, spät heim, früh ins Bett): gilt bis zum nächsten Schaltpunkt bzw. bis
-// HeatPilot erkennt, dass die Lage vorbei ist; der aktive Knopf beendet es. Stand aus sensor.heatpilot_modus.
-const MODES = [["nacht", "Nacht", "M12 3a7 7 0 1 0 9 9 9 9 0 1 1-9-9z"], ["anwesend", "Anwesend", "M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"],
+// Vier Knöpfe für Ausnahmen (nachts zur Arbeit, samstags früh raus, spät heim, früh ins Bett): gilt bis zum nächsten
+// Schaltpunkt bzw. bis HeatPilot erkennt, dass die Lage vorbei ist; der aktive Knopf beendet es. „Tag“ (0.5.0, Add-on
+// ab 0.71) beendet die Nacht. Stand aus sensor.heatpilot_modus.
+const MODES = [["nacht", "Nacht", "M12 3a7 7 0 1 0 9 9 9 9 0 1 1-9-9z"],
+  ["tag", "Tag", "M12 8a4 4 0 1 0 0 8 4 4 0 1 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"],
+  ["anwesend", "Anwesend", "M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"],
   ["abwesend", "Abwesend", "M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"]];
 const MODE_CSS = `
-.modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.hp-root { container-type: inline-size; }
+.modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@container (min-width: 520px) { .modes { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .mode { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 14px; border-radius: 16px;
   border: 1px solid var(--hp-border); background: var(--ha-card-background, var(--card-background-color, transparent)); cursor: pointer; text-align: left; }
 .mode svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

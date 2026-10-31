@@ -10,7 +10,7 @@ HeatPilot-Seite, ohne card-mod, ohne weitere Abhängigkeiten. Bedienen geht auch
 | `custom:heatpilot-rooms-card` | Raumkacheln wie im Reiter „Heizen“ (Ist, Luftfeuchte, Zustand, Farben), direkt auf dem Hintergrund. Antippen öffnet das Thermostat-Pop-up von Home Assistant |
 | `custom:heatpilot-control-card` | „HeatPilot Steuerung“ für mehrere Räume auf einmal – wie die Leiste im Reiter „Heizen“: Räume wählen, Temperatur, Boost mit Dauer („bis 18:44“), Zeitplan, Aus; laufende Boosts mit Restzeit, Stopp, +30 min |
 | `custom:heatpilot-weather-card` | Wetter jetzt (Symbol, Temperatur, gefühlt, Wind mit Richtung und Böen, Feuchte, Druck, UV, Wolken) und die nächsten 24 Stunden als Stundenbalken |
-| `custom:heatpilot-mode-card` | „Nur jetzt“ für Ausnahmen: **Nacht**, **Anwesend**, **Abwesend** für das ganze Haus – gilt bis zum nächsten Schaltpunkt oder bis HeatPilot erkennt, dass die Lage vorbei ist; der aktive Knopf beendet es (Add-on ab 0.62) |
+| `custom:heatpilot-mode-card` | „Nur jetzt“ für Ausnahmen: **Nacht**, **Tag** (beendet die Nacht, Add-on ab 0.71), **Anwesend**, **Abwesend** für das ganze Haus – gilt bis zum nächsten Schaltpunkt oder bis HeatPilot erkennt, dass die Lage vorbei ist; der aktive Knopf beendet es (Add-on ab 0.62) |
 
 ## Voraussetzung
 
