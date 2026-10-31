@@ -10,7 +10,7 @@
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.5.0";
+const HP_VERSION = "0.6.0";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
@@ -136,15 +136,25 @@ class HPBase extends HTMLElement {
 
 // ------------------------------------------------------------------ Räume
 // Zustandszeile wie die Raumkachel der HeatPilot-Seite (roomState dort)
+// 0.6.0 (Add-on ab 0.72): eigenes Climate je geführtem Raum – Text der Betriebsart und das Soll, nach dem die Kachel färbt
+const ownText = (o) => o.mode === "aus" ? "Aus (Frostschutz)"
+  : o.mode === "boost" ? `Boost ${fmt(o.sp)}° bis ${clock(new Date(o.until * 1000).toISOString())}` : `Manuell ${fmt(o.sp)}°`;
+const ownLed = (r) => r.managing && r.managed && r.phase;
+function tileSoll(r) {
+  if (ownLed(r) && r.desired !== null && r.desired !== undefined) return (r.own || {}).mode === "aus" ? null : r.desired;
+  return r.mode === "off" ? null : r.target;
+}
 function roomState(r) {
   const t = fmt(r.target) + "°";
   if (r.ems) return `Nur Anzeige · ${t}`;
   if (r.boost) return `Boost · ${t} · ${hm(r.boost.left_min || 0).replace(" h", "")} bis ${clock(r.boost.until)}`;
   if (r.managing && r.managed && r.lead === "ventil" && r.phase) {
     const pct = r.valve_want ?? r.valve;
-    return `Ventil · ${PHASE[r.phase] || r.phase} ${fmt(r.desired)}°` + (pct !== null && pct !== undefined ? ` · ${fmt(pct, 0)} %` : "") + (r.valve_hold ? " · von Hand" : "");
+    return `Ventil · ${r.own ? ownText(r.own) : `${PHASE[r.phase] || r.phase} ${fmt(r.desired)}°`}` +
+      (pct !== null && pct !== undefined ? ` · ${fmt(pct, 0)} %` : "") + (r.valve_hold ? " · von Hand" : "");
   }
   if (r.managing && r.managed && r.phase) {
+    if (r.own) return ownText(r.own);
     const until = r.manual_until ? ` bis ${clock(r.manual_until)}` : "";
     if (r.mode === "off") return "Aus" + until;
     if (r.manual) return `Manuell · ${t}${until}`;
@@ -177,10 +187,21 @@ const ROOMS_CSS = `
 .rtile .big small { font-size: 16px; font-weight: 600; }
 .rtile h3 { margin: 6px 0 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rtile .state { font-size: 12px; color: var(--hp-text2); margin-top: 2px; }
-.rtile.heating { background: var(--hp-heat-bg); border-color: transparent; color: var(--hp-heat-fg); }
-.rtile.heating h3, .rtile.heating .state { color: var(--hp-heat-fg); }
-.rtile.heating .hum { background: rgba(255,255,255,.16); color: var(--hp-heat-fg); }
-.rtile.off { background: var(--hp-off-bg); color: var(--hp-text2); }
+.rtile.soll { background: var(--t-bg); border-color: transparent; }  /* 0.6.0: Farbe nach Soll, nicht nach „heizt“ */
+.rtile.soll .big { color: var(--t-fg); }
+.rtile.off h3 { color: var(--hp-text2); }
+.dlg { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 16px;
+  background: var(--ha-card-background, var(--card-background-color, #fff)); border: 1px solid var(--hp-border); overflow: auto; }
+.dlg h3 { margin: 0; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+.dlg .x { border: 0; background: none; font-size: 18px; cursor: pointer; color: var(--hp-text2); }
+.dlg .step { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--hp-border); border-radius: 10px; }
+.dlg .step button { width: 48px; font-size: 20px; padding: 8px 0; border: 0; background: transparent; cursor: pointer; color: var(--t-fg); }
+.dlg .step span { font-size: 22px; font-weight: 600; color: var(--t-fg); font-variant-numeric: tabular-nums; }
+.dlg .seg { display: flex; border: 1px solid var(--hp-border); border-radius: 10px; overflow: hidden; }
+.dlg .seg button { flex: 1; padding: 8px 0; font-size: 13px; border: 0; border-right: 1px solid var(--hp-border); background: transparent; cursor: pointer; color: var(--hp-text); }
+.dlg .seg button:last-child { border-right: 0; } .dlg .seg button.on { background: var(--hp-blue); color: #fff; }
+.dlg .link { background: none; border: 0; padding: 0; color: var(--hp-text2); font-size: 12px; cursor: pointer; text-align: left; }
+.hp-root { position: relative; }
 .rtile .left { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 10px; background: var(--hp-heat-fg); color: #111; }
 `;
 
@@ -194,14 +215,15 @@ class HeatPilotRoomsCard extends HPBase {
   getLayoutOptions() { return { grid_columns: this.roomCount() === 1 ? 2 : 4, grid_rows: "auto" }; }
   renderKey(hass) {
     const es = roomEntities(hass, this.config || {});
-    return JSON.stringify(es.map((e) => [hass.states[e].state, hass.states[e].attributes, hass.states[hass.states[e].attributes.climate]]));
+    return JSON.stringify([es.map((e) => [hass.states[e].state, hass.states[e].attributes, hass.states[hass.states[e].attributes.climate]]),
+      this._dlg, this._msg]);
   }
   // Anzeige wie im Reiter „Heizen“
   tile(r) {
-    const off = r.mode === "off", heating = !off && (r.action === "heating" || (r.valve || 0) > 0);
+    const soll = tileSoll(r), off = soll === null, c = tileColors(soll, off ? "off" : "heat");
     const hum = r.humidity !== null && r.humidity !== undefined ? `<span class="hum">${ICON.drop}${fmt(r.humidity, 0)} %</span>` : "<span></span>";
     const right = r.boost ? `<span class="left">noch ${leftText(r.boost.left_min || 0)}</span>` : off ? `<span class="pw">${ICON.off}</span>` : "";
-    return `<div class="rtile ${off ? "off" : heating ? "heating" : "idle"}" data-more="${esc(r.climate)}" role="button" tabindex="0">` +
+    return `<div class="rtile soll${off ? " off" : ""}" style="--t-fg:${c.fg};--t-bg:${c.bg}" data-dlg="${esc(r.climate)}" role="button" tabindex="0">` +
       `<div class="top">${hum}${right}</div><div><div class="big">${bigNumber(r.temp, "°")}</div><h3>${esc(r.name)}</h3>` +
       `<div class="state">${esc(roomState(r))}</div></div></div>`;
   }
@@ -212,10 +234,30 @@ class HeatPilotRoomsCard extends HPBase {
     const cols = this.config.columns || (k <= 4 ? k : k <= 6 ? 3 : 4);
     card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") +
       `<div class="grid" style="--cols:${cols};--ncols:${this.config.columns || Math.min(k, 2)}">` +
-      rooms.map((r) => this.tile(r)).join("") + "</div>";
-    // Antippen: das Pop-up von Home Assistant für das Thermostat (Soll, Betriebsart, Verlauf)
-    card.querySelectorAll("[data-more]").forEach((el) => el.addEventListener("click", () =>
-      this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.more }, bubbles: true, composed: true }))));
+      rooms.map((r) => this.tile(r)).join("") + "</div>" + this.dialog(rooms.find((r) => r.climate === this._dlg));
+    // Antippen: HeatPilots eigenes Climate (0.6.0) – das Thermostat-Pop-up nur noch für die Einrichtung (Link im Dialog)
+    const on = (sel, fn) => card.querySelectorAll(sel).forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); fn(el); }));
+    on("[data-dlg]", (el) => { this._dlg = el.dataset.dlg; this._msg = null; this._key = null; this.render(); });
+    on("[data-x]", () => { this._dlg = null; this._key = null; this.render(); });
+    on("[data-more]", (el) => this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.more }, bubbles: true, composed: true })));
+    on("[data-cmd]", (el) => this.command(JSON.parse(el.dataset.cmd), this.report()));
+  }
+  // Ein Raum: Soll −/+, Zeitplan | Manuell | Aus, Boost – geht über den Befehl an HeatPilot (heat_actions)
+  dialog(r) {
+    if (!r) return "";
+    const soll = tileSoll(r), off = soll === null, c = tileColors(soll, off ? "off" : "heat"), own = (r.own || {}).mode;
+    const mode = ownLed(r) ? (!own ? "auto" : own === "aus" ? "off" : "heat") : r.mode;
+    const cmd = (o) => esc(JSON.stringify({ room: r.climate, rooms: [r.climate], ...o }));
+    const t = (d) => Math.min(Math.max((soll ?? 20) + d, 5), 25), m = this._msg || {};
+    return `<div class="dlg" style="--t-fg:${c.fg}"><h3>${esc(r.name)}<button class="x" data-x aria-label="Schließen">✕</button></h3>` +
+      `<div class="muted">${fmt(r.temp)} °C · ${esc(roomState(r))}</div>` +
+      `<div class="step"><button data-cmd="${cmd({ a: "temp", temp: t(-0.5) })}"${off ? " disabled" : ""}>−</button>` +
+      `<span>${off ? "Aus" : fmt(soll) + " °C"}</span><button data-cmd="${cmd({ a: "temp", temp: t(0.5) })}"${off ? " disabled" : ""}>+</button></div>` +
+      `<div class="seg">${[["auto", "Zeitplan"], ["heat", "Manuell"], ["off", "Aus"]].map(([k, l]) =>
+        `<button class="${mode === k ? "on" : ""}" data-cmd="${cmd({ a: "mode", mode: k })}">${l}</button>`).join("")}</div>` +
+      `<div class="seg">${[30, 60, 120].map((min) => `<button data-cmd="${cmd({ a: "boost", temp: t(2), minutes: min })}">Boost ${leftText(min).replace(":00 h", " h")}</button>`).join("")}</div>` +
+      `<button class="link" data-more="${esc(r.climate)}">Thermostat (Einrichtung) ›</button>` +
+      `<div class="msg${m.err ? " err" : " muted"}">${esc(m.text || "")}</div></div>`;
   }
 }
 
