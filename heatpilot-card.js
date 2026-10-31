@@ -10,7 +10,7 @@
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.6.0";
+const HP_VERSION = "0.6.1";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
@@ -147,17 +147,12 @@ function tileSoll(r) {
 function roomState(r) {
   const t = fmt(r.target) + "°";
   if (r.ems) return `Nur Anzeige · ${t}`;
+  if (r.managing && r.managed && r.own) return ownText(r.own);  // eigenes Climate (0.6.0)
   if (r.boost) return `Boost · ${t} · ${hm(r.boost.left_min || 0).replace(" h", "")} bis ${clock(r.boost.until)}`;
-  if (r.managing && r.managed && r.lead === "ventil" && r.phase) {
-    const pct = r.valve_want ?? r.valve;
-    return `Ventil · ${r.own ? ownText(r.own) : `${PHASE[r.phase] || r.phase} ${fmt(r.desired)}°`}` +
-      (pct !== null && pct !== undefined ? ` · ${fmt(pct, 0)} %` : "") + (r.valve_hold ? " · von Hand" : "");
-  }
-  if (r.managing && r.managed && r.phase) {
-    if (r.own) return ownText(r.own);
-    const until = r.manual_until ? ` bis ${clock(r.manual_until)}` : "";
-    if (r.mode === "off") return "Aus" + until;
-    if (r.manual) return `Manuell · ${t}${until}`;
+  if (r.managing && r.managed && r.phase) {  // Ventilräume wie die übrigen (0.6.1)
+    const until = r.manual_until ? ` bis ${clock(r.manual_until)}` : "", valve = r.lead === "ventil";
+    if (r.mode === "off" && !valve) return "Aus" + until;
+    if (r.manual && !valve) return `Manuell · ${t}${until}`;
     const d = fmt(r.desired) + "°";
     let s = r.paused ? `Pause · ${t}` : r.phase === "vorheizen" ? `Vorheizen → ${d}` : `HeatPilot · ${PHASE[r.phase] || r.phase} ${d}`;
     if (r.reach_c !== null && r.reach_c !== undefined && r.desired !== null && r.reach_c < r.desired - 0.2) s += ` · erreicht ≈ ${fmt(r.reach_c)}°`;
