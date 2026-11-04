@@ -11,7 +11,7 @@
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.7.0";
+const HP_VERSION = "0.7.1";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
@@ -517,6 +517,10 @@ class HeatPilotModeCard extends HPBase {
 // ------------------------------------------------------------------ Hinweise (0.7.0)
 // Anstehende Hinweise aus sensor.heatpilot_hinweise (Add-on ab 0.75): Lüften – ein Raum ist zu feucht, HeatPilot senkt
 // ihn nachts und bei Abwesenheit dann nur 1 K ab – und die offenen Probleme. Nur Anzeige, nie eine Meldung aufs Handy.
+// Seit 0.7.1 je Dashboard Gruppen ausblenden (hide, Add-on ab 0.75.1: Gruppe je Hinweis) – neue Gruppen erscheinen.
+const HINT_GROUPS = [["lueften", "Lüften"], ["ventile", "Ventile"], ["kessel", "Kessel"], ["warmwasser", "Warmwasser"],
+  ["thermostate", "Thermostate"], ["sonstiges", "Sonstiges"]];
+const hintGroup = (h) => h.group || (h.kind === "lueften" ? "lueften" : "sonstiges");
 const HINT_PATH = {
   lueften: "M12 2.5s6 7 6 11.5a6 6 0 0 1-12 0C6 9.5 12 2.5 12 2.5z",
   problem: "M12 3 2 20h20L12 3zM12 10v4M12 17v.5",
@@ -536,9 +540,10 @@ class HeatPilotHintsCard extends HPBase {
   static getConfigElement() { return document.createElement("heatpilot-hints-card-editor"); }
   static getStubConfig() { return {}; }
   getCardSize() { const s = this._hass && this._hass.states[HINTS]; return 1 + (((s && s.attributes.items) || []).length || 1); }
-  renderKey(hass) { const s = hass.states[HINTS]; return JSON.stringify([s && s.state, s && s.attributes.items]); }
+  renderKey(hass) { const s = hass.states[HINTS]; return JSON.stringify([s && s.state, s && s.attributes.items, this.config.hide]); }
   render() {
-    const s = this._hass.states[HINTS], items = (s && s.attributes.items) || [];
+    const s = this._hass.states[HINTS], all = (s && s.attributes.items) || [], hide = new Set(this.config.hide || []);
+    const items = all.filter((h) => !hide.has(hintGroup(h)));
     this.style.display = s && !items.length && this.config.hide_empty ? "none" : "";
     const card = this.root(HINTS_CSS, this.config.card ? "ha-card" : "div");
     if (!s) { card.innerHTML = `<p class="muted">sensor.heatpilot_hinweise fehlt – HeatPilot-Add-on ab 0.75 nötig.</p>`; return; }
@@ -547,7 +552,7 @@ class HeatPilotHintsCard extends HPBase {
     card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") + `<div class="hints">` +
       (items.length ? items.map((h) => row(h.kind, h.text,
         [h.since ? `seit ${clock(h.since)}` : "", h.note || ""].filter(Boolean).join(" · "))).join("")
-        : row("ok", "Keine Hinweise", "Luftfeuchte und HeatPilot sind in Ordnung.")) + `</div>`;
+        : row("ok", "Keine Hinweise", all.length ? "Nichts steht an." : "Luftfeuchte und HeatPilot sind in Ordnung.")) + `</div>`;
   }
 }
 
@@ -592,7 +597,9 @@ class ModeCardEditor extends HPEditor {
 }
 class HintsCardEditor extends HPEditor {
   schema() {
-    return [TITLE, { type: "grid", name: "", schema: [
+    return [TITLE, { name: "hide", label: "Nicht anzeigen", helper: "Diese Gruppen blendet die Karte aus – z. B. Ventile für Mitbewohner",
+      selector: { select: { multiple: true, mode: "list", options: HINT_GROUPS.map(([value, label]) => ({ value, label })) } } },
+    { type: "grid", name: "", schema: [
       { name: "hide_empty", label: "Ausblenden, wenn nichts ansteht", selector: { boolean: {} } },
       { name: "card", label: "Mit Kartenrahmen", selector: { boolean: {} } }] }];
   }

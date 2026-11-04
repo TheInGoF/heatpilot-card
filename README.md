@@ -11,7 +11,7 @@ HeatPilot-Seite, ohne card-mod, ohne weitere Abhängigkeiten. Bedienen geht auch
 | `custom:heatpilot-control-card` | „HeatPilot Steuerung“ für mehrere Räume auf einmal – wie die Leiste im Reiter „Heizen“: Räume wählen, Temperatur, Boost mit Dauer („bis 18:44“), Zeitplan, Aus; laufende Boosts mit Restzeit, Stopp, +30 min |
 | `custom:heatpilot-weather-card` | Wetter jetzt (Symbol, Temperatur, gefühlt, Wind mit Richtung und Böen, Feuchte, Druck, UV, Wolken) und die nächsten 24 Stunden als Stundenbalken |
 | `custom:heatpilot-mode-card` | „Nur jetzt“ für Ausnahmen: **Nacht**, **Tag** (beendet die Nacht, Add-on ab 0.71), **Anwesend**, **Abwesend** für das ganze Haus – gilt bis zum nächsten Schaltpunkt oder bis HeatPilot erkennt, dass die Lage vorbei ist; der aktive Knopf beendet es (Add-on ab 0.62) |
-| `custom:heatpilot-hints-card` | „HeatPilot Hinweise“: was gerade ansteht – **Lüften**, wenn ein Raum zu feucht ist (HeatPilot senkt ihn dann nachts und bei Abwesenheit nur 1 K ab), und die offenen Probleme. Nur Anzeige, keine Meldung aufs Handy; ohne Hinweis „Keine Hinweise“ oder ausgeblendet (`hide_empty: true`) (ab 0.7, Add-on ab 0.75) |
+| `custom:heatpilot-hints-card` | „HeatPilot Hinweise“: was gerade ansteht – **Lüften**, wenn ein Raum zu feucht ist (HeatPilot senkt ihn dann nachts und bei Abwesenheit nur 1 K ab), und die offenen Probleme. Nur Anzeige, keine Meldung aufs Handy; ohne Hinweis „Keine Hinweise“ oder ausgeblendet (`hide_empty: true`). Je Dashboard lassen sich Gruppen ausblenden – Lüften, Ventile, Kessel, Warmwasser, Thermostate, Sonstiges (`hide`, ab 0.7.1, Add-on ab 0.75.1) (ab 0.7, Add-on ab 0.75) |
 
 ## Voraussetzung
 
@@ -53,6 +53,7 @@ type: custom:heatpilot-mode-card   # Add-on ab 0.62, liest sensor.heatpilot_modu
 
 ```yaml
 type: custom:heatpilot-hints-card  # Add-on ab 0.75, liest sensor.heatpilot_hinweise
+# hide: [ventile, kessel]          # optional – Gruppen ausblenden (lueften, ventile, kessel, warmwasser, thermostate, sonstiges)
 # hide_empty: true                 # optional – ausblenden, solange nichts ansteht
 # card: true                       # optional – mit Kartenrahmen
 ```
