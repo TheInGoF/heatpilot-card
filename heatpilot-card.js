@@ -1,20 +1,22 @@
 /* HeatPilot Card – Karten für Home Assistant zum Add-on „EMS HeatPilot“ (ab Add-on 0.56).
  *
- * Vier Karten im Stil der HeatPilot-Seite, ohne card-mod und ohne Abhängigkeiten:
+ * Fünf Karten im Stil der HeatPilot-Seite, ohne card-mod und ohne Abhängigkeiten:
  *   custom:heatpilot-rooms-card    Raumkacheln wie im Reiter „Heizen“; Antippen öffnet das Thermostat-Pop-up
  *   custom:heatpilot-control-card  Mehrere Räume auf einmal: Boost mit Dauer, Zeitplan, Aus – laufende Boosts mit Stopp
  *   custom:heatpilot-weather-card  Wetter jetzt und die nächsten 24 Stunden als Stundenbalken
  *   custom:heatpilot-mode-card     Nur jetzt: Nacht, Anwesend, Abwesend für das ganze Haus (ab Add-on 0.62)
+ *   custom:heatpilot-hints-card    Anstehende Hinweise: Lüften, offene Probleme (ab Add-on 0.75)
  *
  * Daten: sensor.heatpilot_raum_* und sensor.heatpilot_boost (setzt das Add-on), die Wetter-Entität.
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.6.1";
+const HP_VERSION = "0.7.0";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
 const MODE = "sensor.heatpilot_modus";
+const HINTS = "sensor.heatpilot_hinweise";
 const PHASE = { komfort: "Komfort", nacht: "Nacht", abwesend: "Abwesend", vorheizen: "Vorheizen", urlaub: "Urlaub", aus: "Aus" };
 
 const fmt = (v, d = 1) => v === null || v === undefined || Number.isNaN(Number(v)) ? "–"
@@ -512,6 +514,43 @@ class HeatPilotModeCard extends HPBase {
   }
 }
 
+// ------------------------------------------------------------------ Hinweise (0.7.0)
+// Anstehende Hinweise aus sensor.heatpilot_hinweise (Add-on ab 0.75): Lüften – ein Raum ist zu feucht, HeatPilot senkt
+// ihn nachts und bei Abwesenheit dann nur 1 K ab – und die offenen Probleme. Nur Anzeige, nie eine Meldung aufs Handy.
+const HINT_PATH = {
+  lueften: "M12 2.5s6 7 6 11.5a6 6 0 0 1-12 0C6 9.5 12 2.5 12 2.5z",
+  problem: "M12 3 2 20h20L12 3zM12 10v4M12 17v.5",
+  ok: "M20 6 9 17l-5-5",
+};
+const HINTS_CSS = `
+.hints { display: flex; flex-direction: column; gap: 8px; }
+.hint { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 14px;
+  border: 1px solid var(--hp-border); background: var(--ha-card-background, var(--card-background-color, transparent)); }
+.hint svg { flex: none; width: 20px; height: 20px; margin-top: 1px; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; }
+.hint.lueften svg { color: var(--hp-blue); fill: currentColor; stroke: none; }
+.hint.problem svg { color: var(--error-color, #c62828); } .hint.ok svg { color: var(--success-color, #2e7d32); }
+.hint b { display: block; font-weight: 500; font-size: 14px; line-height: 1.35; color: var(--hp-text); }
+`;
+class HeatPilotHintsCard extends HPBase {
+  static getConfigElement() { return document.createElement("heatpilot-hints-card-editor"); }
+  static getStubConfig() { return {}; }
+  getCardSize() { const s = this._hass && this._hass.states[HINTS]; return 1 + (((s && s.attributes.items) || []).length || 1); }
+  renderKey(hass) { const s = hass.states[HINTS]; return JSON.stringify([s && s.state, s && s.attributes.items]); }
+  render() {
+    const s = this._hass.states[HINTS], items = (s && s.attributes.items) || [];
+    this.style.display = s && !items.length && this.config.hide_empty ? "none" : "";
+    const card = this.root(HINTS_CSS, this.config.card ? "ha-card" : "div");
+    if (!s) { card.innerHTML = `<p class="muted">sensor.heatpilot_hinweise fehlt – HeatPilot-Add-on ab 0.75 nötig.</p>`; return; }
+    const row = (kind, text, sub) => `<div class="hint ${kind}"><svg viewBox="0 0 24 24"><path d="${HINT_PATH[kind] || HINT_PATH.problem}"/></svg>` +
+      `<div><b>${esc(text)}</b>${sub ? `<span class="muted">${esc(sub)}</span>` : ""}</div></div>`;
+    card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") + `<div class="hints">` +
+      (items.length ? items.map((h) => row(h.kind, h.text,
+        [h.since ? `seit ${clock(h.since)}` : "", h.note || ""].filter(Boolean).join(" · "))).join("")
+        : row("ok", "Keine Hinweise", "Luftfeuchte und HeatPilot sind in Ordnung.")) + `</div>`;
+  }
+}
+
 class HPEditor extends HTMLElement {
   setConfig(config) { this._config = { ...config }; this.render(); }
   set hass(hass) { this._hass = hass; this.render(); }
@@ -551,6 +590,13 @@ class ControlCardEditor extends HPEditor {
 class ModeCardEditor extends HPEditor {
   schema() { return [TITLE, { name: "card", label: "Mit Kartenrahmen", selector: { boolean: {} } }]; }
 }
+class HintsCardEditor extends HPEditor {
+  schema() {
+    return [TITLE, { type: "grid", name: "", schema: [
+      { name: "hide_empty", label: "Ausblenden, wenn nichts ansteht", selector: { boolean: {} } },
+      { name: "card", label: "Mit Kartenrahmen", selector: { boolean: {} } }] }];
+  }
+}
 class WeatherCardEditor extends HPEditor {
   schema() { return [{ name: "entity", label: "Wetter-Entität", required: true, selector: { entity: { domain: "weather" } } }, TITLE]; }
 }
@@ -558,7 +604,9 @@ customElements.define("heatpilot-rooms-card-editor", RoomsCardEditor);
 customElements.define("heatpilot-control-card-editor", ControlCardEditor);
 customElements.define("heatpilot-weather-card-editor", WeatherCardEditor);
 customElements.define("heatpilot-mode-card-editor", ModeCardEditor);
+customElements.define("heatpilot-hints-card-editor", HintsCardEditor);
 customElements.define("heatpilot-mode-card", HeatPilotModeCard);
+customElements.define("heatpilot-hints-card", HeatPilotHintsCard);
 customElements.define("heatpilot-rooms-card", HeatPilotRoomsCard);
 customElements.define("heatpilot-control-card", HeatPilotControlCard);
 customElements.define("heatpilot-weather-card", HeatPilotWeatherCard);
@@ -568,5 +616,6 @@ window.customCards.push(
   { type: "heatpilot-control-card", name: "HeatPilot Steuerung", description: "Mehrere Räume: Boost, Zeitplan, Aus" },
   { type: "heatpilot-weather-card", name: "HeatPilot Wetter", description: "Wetter jetzt und 24 Stunden als Stundenbalken" },
   { type: "heatpilot-mode-card", name: "HeatPilot Nur jetzt", description: "Nacht, Anwesend, Abwesend – bis zum nächsten Schaltpunkt" },
+  { type: "heatpilot-hints-card", name: "HeatPilot Hinweise", description: "Anstehende Hinweise: Lüften, offene Probleme" },
 );
 console.info(`%c HeatPilot Card ${HP_VERSION} `, "background:#9a4e00;color:#fff;border-radius:4px");
