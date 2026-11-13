@@ -2,8 +2,9 @@
 
 # HeatPilot Card
 
-Karten für Home Assistant zum Add-on **[EMS HeatPilot](https://github.com/TheInGoF/ems-heatpilot)** – im Stil der
-HeatPilot-Seite, ohne card-mod, ohne weitere Abhängigkeiten. Bedienen geht auch für Nicht-Admins und unterwegs in der App.
+Karten für Home Assistant zum Add-on **[EMS HeatPilot](https://github.com/TheInGoF/ems-heatpilot)** – im
+Standard-Design von Home Assistant (ab 0.8: Kartenrahmen, Fläche, Schrift, Akzentfarbe und Rundung kommen vom Theme;
+eigene Farben haben nur die Wetter-Grafik und die Raumkacheln nach Soll), ohne card-mod, ohne weitere Abhängigkeiten. Bedienen geht auch für Nicht-Admins und unterwegs in der App.
 
 | Karte | Was sie zeigt |
 |---|---|
@@ -24,8 +25,8 @@ Wetter-Entität mit stündlicher Vorhersage.
 1. HACS → ⋮ → **Benutzerdefinierte Repositories** → `https://github.com/TheInGoF/heatpilot-card`, Typ **Dashboard**.
 2. „HeatPilot Card“ suchen, herunterladen, Seite neu laden.
 3. Dashboard bearbeiten → Karte hinzufügen → Reiter „Nach Karte“ → „HeatPilot“ suchen. Alle Karten haben einen
-   visuellen Editor: Räume (leer = alle), Titel, Spalten bzw. die Wetter-Entität. Alle Karten stehen ohne
-   Kartenrahmen direkt auf dem Hintergrund; `card: true` gibt ihnen den Rahmen zurück.
+   visuellen Editor: Räume (leer = alle), Titel, Spalten bzw. die Wetter-Entität. Steuerung, Wetter und Hinweise
+   sind je eine Karte mit dem Titel als Kartenkopf; Räume und „Nur jetzt“ sind ein Raster aus einzelnen Kacheln.
 
 ## Beispiele
 
@@ -35,7 +36,6 @@ type: custom:heatpilot-rooms-card
 #   - sensor.heatpilot_raum_wohnzimmer   # nach dem Raumnamen in HeatPilot (Add-on ab 0.56.3)
 # columns: 2           # optional – Spalten auf breiten Dashboards
 # title: Räume         # optional
-# card: true           # optional – Kacheln in einem Kartenrahmen statt direkt auf dem Hintergrund
 ```
 
 ```yaml
@@ -55,7 +55,6 @@ type: custom:heatpilot-mode-card   # Add-on ab 0.62, liest sensor.heatpilot_modu
 type: custom:heatpilot-hints-card  # Add-on ab 0.75, liest sensor.heatpilot_hinweise
 # hide: [ventile, kessel]          # optional – Gruppen ausblenden (lueften, ventile, kessel, warmwasser, thermostate, sonstiges)
 # hide_empty: true                 # optional – ausblenden, solange nichts ansteht
-# card: true                       # optional – mit Kartenrahmen
 ```
 
 ## So bedienen die Karten

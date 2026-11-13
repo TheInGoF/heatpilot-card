@@ -1,6 +1,7 @@
 /* HeatPilot Card – Karten für Home Assistant zum Add-on „EMS HeatPilot“ (ab Add-on 0.56).
  *
- * Fünf Karten im Stil der HeatPilot-Seite, ohne card-mod und ohne Abhängigkeiten:
+ * Fünf Karten im Standard-Design von Home Assistant (ha-card, Farben und Rundung vom Theme), ohne card-mod und ohne
+ * Abhängigkeiten – eigene Farben haben nur die Wetter-Grafik und die Raumkacheln (nach Soll):
  *   custom:heatpilot-rooms-card    Raumkacheln wie im Reiter „Heizen“; Antippen öffnet das Thermostat-Pop-up
  *   custom:heatpilot-control-card  Mehrere Räume auf einmal: Boost mit Dauer, Zeitplan, Aus – laufende Boosts mit Stopp
  *   custom:heatpilot-weather-card  Wetter jetzt und die nächsten 24 Stunden als Stundenbalken
@@ -11,7 +12,7 @@
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.7.1";
+const HP_VERSION = "0.8.0";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
@@ -45,27 +46,27 @@ const ICON = {
   sched: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.4L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.4L3 16"/><path d="M3 21v-5h5"/></svg>',
 };
 
-// Farben der HeatPilot-Seite; Fläche und Schrift kommen vom Home-Assistant-Theme
+// Standard-Design von Home Assistant (0.8.0): Rahmen, Fläche, Schrift, Akzent und Rundung kommen vom Theme (ha-card und
+// seine Variablen). Eigene Farben haben nur die Wetter-Grafik (--hp-*) und die Raumkacheln nach Soll (tileColors).
 const BASE_CSS = `
-:host { --hp-heat-bg: #f8e1c2; --hp-heat-fg: #9a4e00; --hp-off-bg: #ecebe8; --hp-blue: #2a78d6;
-  --hp-orange: #eb6834; --hp-purple: #8e5bd0; --hp-grey: #8a8984; --hp-warn: #c98500; --hp-chip: rgba(127,127,127,.10);
-  --hp-text: var(--primary-text-color); --hp-text2: var(--secondary-text-color); --hp-border: var(--divider-color, rgba(127,127,127,.25)); }
-:host([dark]) { --hp-heat-bg: #4a2d0c; --hp-heat-fg: #f5a729; --hp-off-bg: #161615; --hp-blue: #3987e5; --hp-orange: #d95926; }
-ha-card { padding: 14px 16px; container-type: inline-size; }
-div.hp-root { display: block; container-type: inline-size; }  /* ohne Kartenrahmen (Standard): direkt auf dem Hintergrund */
-div.hp-root > h2 { margin: 4px 4px 10px; }
-h2 { margin: 0 0 10px; font-size: 17px; font-weight: 600; color: var(--hp-text); display: flex; align-items: center; gap: 8px; }
+:host { --hp-blue: #2a78d6; --hp-orange: #eb6834; --hp-purple: #8e5bd0; --hp-grey: #8a8984; --hp-warn: #c98500;
+  --hp-text: var(--primary-text-color); --hp-text2: var(--secondary-text-color); --hp-border: var(--divider-color, rgba(127,127,127,.25));
+  --hp-accent: var(--primary-color, #03a9f4); --hp-on-accent: var(--text-primary-color, #fff);
+  --hp-heat: var(--state-climate-heat-color, #ff8100); --hp-surface: var(--ha-card-background, var(--card-background-color, #fff));
+  --hp-r: var(--ha-card-border-radius, 12px); --hp-r2: min(var(--hp-r), 10px); }
+:host([dark]) { --hp-blue: #3987e5; --hp-orange: #d95926; }
+.hp-body { display: block; position: relative; container-type: inline-size; color: var(--hp-text); }
+h2 { margin: 0 0 8px; font-size: var(--ha-font-size-l, 16px); font-weight: 500; color: var(--hp-text); }
 .muted { color: var(--hp-text2); font-size: 12px; }
-.lbl { font-size: 12px; color: var(--hp-text2); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; margin: 12px 0 6px; }
+.lbl { font-size: 12px; color: var(--hp-text2); font-weight: 500; margin: 12px 0 6px; }
 button { font: inherit; color: inherit; }
-.btn { border: 1px solid var(--hp-border); border-radius: 10px; background: var(--card-background-color, transparent); padding: 7px 12px;
+.btn { border: 1px solid var(--hp-border); border-radius: var(--hp-r2); background: transparent; padding: 7px 12px;
   cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; color: var(--hp-text); }
 .btn svg { width: 16px; height: 16px; }
-.btn.primary { background: var(--hp-blue); border-color: transparent; color: #fff; font-weight: 600; }
+.btn.primary { background: var(--hp-accent); border-color: transparent; color: var(--hp-on-accent); font-weight: 500; }
 .btn:disabled { opacity: .45; cursor: default; }
 .msg { font-size: 12px; margin-top: 8px; min-height: 0; }
 .msg.err { color: var(--error-color, #c62828); }
-.pill { background: var(--hp-heat-bg); color: var(--hp-heat-fg); border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 600; }
 `;
 
 // Befehl an das Add-on (input_text.heatpilot_befehl); n macht gleiche Befehle unterscheidbar
@@ -104,16 +105,20 @@ class HPBase extends HTMLElement {
     this.render();
   }
   get hass() { return this._hass; }
-  // tag "div": ohne Kartenrahmen, direkt auf dem Hintergrund des Dashboards (Raumkacheln)
-  root(css, tag = "ha-card") {
+  // framed: eine ha-card mit dem Titel als Kartenkopf; sonst ein Raster aus einzelnen ha-card-Kacheln (Räume, Nur jetzt)
+  root(css, framed = true) {
     if (!this.shadowRoot) this.attachShadow({ mode: "open" });
-    let el = this.shadowRoot.querySelector(".hp-root");
-    if (!el || el.tagName.toLowerCase() !== tag) {
-      this.shadowRoot.innerHTML = `<style>${BASE_CSS}${css}</style><${tag} class="hp-root"></${tag}>`;
-      el = this.shadowRoot.querySelector(".hp-root");
+    let el = this.shadowRoot.querySelector(".hp-body");
+    if (!el) {
+      this.shadowRoot.innerHTML = `<style>${BASE_CSS}${css}</style>` +
+        (framed ? `<ha-card><div class="card-content hp-body"></div></ha-card>` : `<div class="hp-body"></div>`);
+      el = this.shadowRoot.querySelector(".hp-body");
     }
+    this._framed = framed;
+    if (framed) el.parentElement.header = this.config.title || undefined;
     return el;
   }
+  heading() { return this._framed || !this.config.title ? "" : `<h2>${esc(this.config.title)}</h2>`; }
   canCommand() { return !!this._hass.states[COMMAND]; }
   // Befehl senden und das Ergebnis abwarten (bis 20 s); show(text, fehler) meldet den Stand
   async command(cmd, show = () => {}) {
@@ -173,33 +178,30 @@ function bigNumber(v, unit) {
 const ROOMS_CSS = `
 .grid { display: grid; grid-template-columns: repeat(var(--ncols, 2), minmax(0, 1fr)); gap: 10px; }
 @container (min-width: 560px) { .grid { grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); } }
-.rtile { position: relative; display: flex; flex-direction: column; justify-content: space-between; aspect-ratio: 1 / 1; padding: 12px 14px;
-  border-radius: 16px; border: 1px solid var(--hp-border); background: var(--ha-card-background, var(--card-background-color, transparent));
-  cursor: pointer; user-select: none; text-align: left; color: var(--hp-text); min-width: 0; box-sizing: border-box; }
+.rtile { display: flex; flex-direction: column; justify-content: space-between; aspect-ratio: 1 / 1; padding: 12px 14px;
+  background: linear-gradient(var(--t-bg), var(--t-bg)), var(--hp-surface);  /* Farbe nach Soll über der Kartenfläche des Themes */
+  cursor: pointer; user-select: none; text-align: left; min-width: 0; box-sizing: border-box; }
 .rtile .top { display: flex; justify-content: space-between; align-items: flex-start; min-height: 30px; gap: 6px; }
 .rtile .hum { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; font-size: 12px; font-weight: 600; padding: 3px 8px;
-  border-radius: 10px; background: rgba(127,127,127,.16); color: var(--hp-text2); }
+  border-radius: var(--hp-r2); background: rgba(127,127,127,.16); color: var(--hp-text2); }
 .rtile .pw { color: var(--hp-text2); opacity: .6; } .rtile .pw svg { width: 30px; height: 30px; }
 .rtile .big { font-size: 40px; font-weight: 700; line-height: 1; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
 .rtile .big small { font-size: 16px; font-weight: 600; }
 .rtile h3 { margin: 6px 0 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rtile .state { font-size: 12px; color: var(--hp-text2); margin-top: 2px; }
-.rtile.soll { background: var(--t-bg); border-color: transparent; }  /* 0.6.0: Farbe nach Soll, nicht nach „heizt“ */
-.rtile.soll .big { color: var(--t-fg); }
+.rtile .big { color: var(--t-fg); }  /* 0.6.0: Farbe nach Soll, nicht nach „heizt“ */
 .rtile.off h3 { color: var(--hp-text2); }
-.dlg { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 16px;
-  background: var(--ha-card-background, var(--card-background-color, #fff)); border: 1px solid var(--hp-border); overflow: auto; }
+.dlg { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; gap: 10px; padding: 14px; overflow: auto; }
 .dlg h3 { margin: 0; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
 .dlg .x { border: 0; background: none; font-size: 18px; cursor: pointer; color: var(--hp-text2); }
-.dlg .step { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--hp-border); border-radius: 10px; }
+.dlg .step { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--hp-border); border-radius: var(--hp-r2); }
 .dlg .step button { width: 48px; font-size: 20px; padding: 8px 0; border: 0; background: transparent; cursor: pointer; color: var(--t-fg); }
 .dlg .step span { font-size: 22px; font-weight: 600; color: var(--t-fg); font-variant-numeric: tabular-nums; }
-.dlg .seg { display: flex; border: 1px solid var(--hp-border); border-radius: 10px; overflow: hidden; }
+.dlg .seg { display: flex; border: 1px solid var(--hp-border); border-radius: var(--hp-r2); overflow: hidden; }
 .dlg .seg button { flex: 1; padding: 8px 0; font-size: 13px; border: 0; border-right: 1px solid var(--hp-border); background: transparent; cursor: pointer; color: var(--hp-text); }
-.dlg .seg button:last-child { border-right: 0; } .dlg .seg button.on { background: var(--hp-blue); color: #fff; }
+.dlg .seg button:last-child { border-right: 0; } .dlg .seg button.on { background: var(--hp-accent); color: var(--hp-on-accent); }
 .dlg .link { background: none; border: 0; padding: 0; color: var(--hp-text2); font-size: 12px; cursor: pointer; text-align: left; }
-.hp-root { position: relative; }
-.rtile .left { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 10px; background: var(--hp-heat-fg); color: #111; }
+.rtile .left { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: var(--hp-r2); background: var(--hp-heat); color: #111; }
 `;
 
 class HeatPilotRoomsCard extends HPBase {
@@ -220,16 +222,16 @@ class HeatPilotRoomsCard extends HPBase {
     const soll = tileSoll(r), off = soll === null, c = tileColors(soll, off ? "off" : "heat");
     const hum = r.humidity !== null && r.humidity !== undefined ? `<span class="hum">${ICON.drop}${fmt(r.humidity, 0)} %</span>` : "<span></span>";
     const right = r.boost ? `<span class="left">noch ${leftText(r.boost.left_min || 0)}</span>` : off ? `<span class="pw">${ICON.off}</span>` : "";
-    return `<div class="rtile soll${off ? " off" : ""}" style="--t-fg:${c.fg};--t-bg:${c.bg}" data-dlg="${esc(r.climate)}" role="button" tabindex="0">` +
+    return `<ha-card class="rtile${off ? " off" : ""}" style="--t-fg:${c.fg};--t-bg:${c.bg}" data-dlg="${esc(r.climate)}" role="button" tabindex="0">` +
       `<div class="top">${hum}${right}</div><div><div class="big">${bigNumber(r.temp, "°")}</div><h3>${esc(r.name)}</h3>` +
-      `<div class="state">${esc(roomState(r))}</div></div></div>`;
+      `<div class="state">${esc(roomState(r))}</div></div></ha-card>`;
   }
   render() {
-    const card = this.root(ROOMS_CSS, this.config.card ? "ha-card" : "div"), hass = this._hass;
+    const card = this.root(ROOMS_CSS, false), hass = this._hass;
     const rooms = roomEntities(hass, this.config).map((e) => roomOf(hass, e)), k = rooms.length;
     if (!k) { card.innerHTML = `<p class="muted">Keine HeatPilot-Räume gefunden – HeatPilot-Add-on ab 0.56 nötig.</p>`; return; }
     const cols = this.config.columns || (k <= 4 ? k : k <= 6 ? 3 : 4);
-    card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") +
+    card.innerHTML = this.heading() +
       `<div class="grid" style="--cols:${cols};--ncols:${this.config.columns || Math.min(k, 2)}">` +
       rooms.map((r) => this.tile(r)).join("") + "</div>" + this.dialog(rooms.find((r) => r.climate === this._dlg));
     // Antippen: HeatPilots eigenes Climate (0.6.0) – das Thermostat-Pop-up nur noch für die Einrichtung (Link im Dialog)
@@ -246,7 +248,7 @@ class HeatPilotRoomsCard extends HPBase {
     const mode = ownLed(r) ? (!own ? "auto" : own === "aus" ? "off" : "heat") : r.mode;
     const cmd = (o) => esc(JSON.stringify({ room: r.climate, rooms: [r.climate], ...o }));
     const t = (d) => Math.min(Math.max((soll ?? 20) + d, 5), 25), m = this._msg || {};
-    return `<div class="dlg" style="--t-fg:${c.fg}"><h3>${esc(r.name)}<button class="x" data-x aria-label="Schließen">✕</button></h3>` +
+    return `<ha-card class="dlg" style="--t-fg:${c.fg}"><h3>${esc(r.name)}<button class="x" data-x aria-label="Schließen">✕</button></h3>` +
       `<div class="muted">${fmt(r.temp)} °C · ${esc(roomState(r))}</div>` +
       `<div class="step"><button data-cmd="${cmd({ a: "temp", temp: t(-0.5) })}"${off ? " disabled" : ""}>−</button>` +
       `<span>${off ? "Aus" : fmt(soll) + " °C"}</span><button data-cmd="${cmd({ a: "temp", temp: t(0.5) })}"${off ? " disabled" : ""}>+</button></div>` +
@@ -254,7 +256,7 @@ class HeatPilotRoomsCard extends HPBase {
         `<button class="${mode === k ? "on" : ""}" data-cmd="${cmd({ a: "mode", mode: k })}">${l}</button>`).join("")}</div>` +
       `<div class="seg">${[30, 60, 120].map((min) => `<button data-cmd="${cmd({ a: "boost", temp: t(2), minutes: min })}">Boost ${leftText(min).replace(":00 h", " h")}</button>`).join("")}</div>` +
       `<button class="link" data-more="${esc(r.climate)}">Thermostat (Einrichtung) ›</button>` +
-      `<div class="msg${m.err ? " err" : " muted"}">${esc(m.text || "")}</div></div>`;
+      `<div class="msg${m.err ? " err" : " muted"}">${esc(m.text || "")}</div></ha-card>`;
   }
 }
 
@@ -262,20 +264,20 @@ class HeatPilotRoomsCard extends HPBase {
 const BOOST_CSS = `
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { border: 1px solid var(--hp-border); border-radius: 999px; padding: 5px 11px; font-size: 13px; background: transparent; cursor: pointer; color: var(--hp-text); }
-.chip.on { background: var(--hp-blue); color: #fff; border-color: transparent; }
-.step { display: inline-flex; align-items: center; border: 1px solid var(--hp-border); border-radius: 10px; overflow: hidden; }
+.chip.on { background: var(--hp-accent); color: var(--hp-on-accent); border-color: transparent; }
+.step { display: inline-flex; align-items: center; border: 1px solid var(--hp-border); border-radius: var(--hp-r2); overflow: hidden; }
 .step button { width: 40px; font-size: 18px; padding: 6px 0; border: 0; background: transparent; cursor: pointer; color: var(--tile-fg); }
 .step span { padding: 0 14px; font-size: 20px; font-weight: 600; color: var(--tile-fg); font-variant-numeric: tabular-nums; }
-.seg { display: flex; border: 1px solid var(--hp-border); border-radius: 10px; overflow: hidden; }
+.seg { display: flex; border: 1px solid var(--hp-border); border-radius: var(--hp-r2); overflow: hidden; }
 .seg button { flex: 1; padding: 7px 0; font-size: 13px; border: 0; border-right: 1px solid var(--hp-border); background: transparent; cursor: pointer; color: var(--hp-text); }
-.seg button:last-child { border-right: 0; } .seg button.on { background: var(--hp-blue); color: #fff; }
+.seg button:last-child { border-right: 0; } .seg button.on { background: var(--hp-accent); color: var(--hp-on-accent); }
 .go { width: 100%; justify-content: center; margin-top: 12px; padding: 10px; font-size: 15px; }
 .acts2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
 .acts2 .btn { justify-content: center; padding: 7px 4px; font-size: 13px; }
 .run { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hp-border); }
 .run:last-of-type { border-bottom: 0; }
 .bar { height: 4px; background: var(--hp-border); border-radius: 2px; margin-top: 4px; width: 160px; max-width: 100%; }
-.bar i { display: block; height: 100%; background: var(--hp-heat-fg); border-radius: 2px; }
+.bar i { display: block; height: 100%; background: var(--hp-heat); border-radius: 2px; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
 .link { background: none; border: 0; padding: 0; color: var(--hp-text2); font-size: 12px; cursor: pointer; margin-top: 10px; }
 `;
@@ -296,13 +298,13 @@ class HeatPilotControlCard extends HPBase {
       Math.floor(Date.now() / 60000), !!hass.states[COMMAND], this._msg]);
   }
   render() {
-    const card = this.root(BOOST_CSS, this.config.card ? "ha-card" : "div"), hass = this._hass, s = hass.states[BOOST];
+    const card = this.root(BOOST_CSS), hass = this._hass, s = hass.states[BOOST];
     if (!s) { card.innerHTML = `<p class="muted">sensor.heatpilot_boost fehlt – HeatPilot-Add-on ab 0.56 nötig.</p>`; return; }
     const a = s.attributes || {}, running = a.rooms || [];
     const rooms = roomEntities(hass, this.config).map((e) => roomOf(hass, e)).filter((r) => !r.ems);
     const ids = rooms.map((r) => r.climate);
     this._b.rooms = this._b.rooms.filter((c) => ids.includes(c));
-    let h = this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "";
+    let h = "";
     for (const r of running) {
       const total = Math.max(r.left_min, 1), done = r.minutes ? Math.max(0, 1 - r.left_min / r.minutes) : 0.5;
       h += `<div class="run"><div><b>${esc(r.room)}</b> · ${fmt(r.temp)} °C<div class="muted">noch ${leftText(total)} · bis ${clock(r.until)}</div>` +
@@ -393,9 +395,9 @@ const WX_CSS = `
 .tnow small { font-size: 18px; font-weight: 500; color: var(--hp-text2); }
 .cond { display: flex; flex-direction: column; font-size: 14px; gap: 2px; color: var(--hp-text); }
 .wchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; font-size: 12px; }
-.wchip { background: var(--hp-chip); border: 1px solid var(--hp-border); border-radius: 999px; padding: 3px 9px; color: var(--hp-text); }
+.wchip { border: 1px solid var(--hp-border); border-radius: 999px; padding: 3px 9px; color: var(--hp-text); }
 .arrow { display: inline-block; margin-right: 3px; }
-.sub { margin: 12px 0 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--hp-text2); }
+.sub { margin: 12px 0 0; font-size: 12px; font-weight: 500; color: var(--hp-text2); }
 .wrow { display: grid; grid-template-columns: 8.5em 1fr; gap: 8px; align-items: end; margin: 6px 0; }
 .wk { display: flex; flex-direction: column; font-size: 12px; line-height: 1.25; color: var(--hp-text); }
 .bars { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; height: 38px; align-items: end; }
@@ -452,12 +454,12 @@ class HeatPilotWeatherCard extends HPBase {
     return `<div class="wrow" style="--c:var(${color})"><span class="wk"><b>${name}</b><span class="muted">${span}${u ? " " + u : ""}${gust}</span></span><span class="bars">${bars}</span></div>`;
   }
   render() {
-    const card = this.root(WX_CSS, this.config.card ? "ha-card" : "div"), s = this._hass.states[this.config.entity];
+    const card = this.root(WX_CSS), s = this._hass.states[this.config.entity];
     if (!s) { card.innerHTML = `<p class="muted">${esc(this.config.entity)} nicht gefunden.</p>`; return; }
     const a = s.attributes || {}, hs = this.hours(), t = hs.map((h) => h.temp).filter((v) => v != null);
     const wind = toMs(a.wind_speed, a.wind_speed_unit), gust = toMs(a.wind_gust_speed, a.wind_speed_unit), brg = a.wind_bearing;
     const chip = (k, v) => v ? `<span class="wchip"><span class="muted">${k}</span> ${v}</span>` : "";
-    let h = `${this.config.title ? `<h2>${esc(this.config.title)}</h2>` : ""}<div class="now"><span class="icon">${wxIcon(s.state)}</span>` +
+    let h = `<div class="now"><span class="icon">${wxIcon(s.state)}</span>` +
       `<span class="tnow">${fmt(a.temperature)}<small> ${esc(a.temperature_unit || "°C")}</small></span>` +
       `<span class="cond"><b>${esc(WX_COND[s.state] || s.state)}</b><span class="muted">${a.apparent_temperature != null ? `gefühlt ${fmt(a.apparent_temperature, 0)} °C` : ""}` +
       `${t.length ? `${a.apparent_temperature != null ? " · " : ""}24 h ${fmt(Math.min(...t), 0)} bis ${fmt(Math.max(...t), 0)} °C` : ""}</span></span></div>` +
@@ -487,14 +489,12 @@ const MODES = [["nacht", "Nacht", "M12 3a7 7 0 1 0 9 9 9 9 0 1 1-9-9z"],
   ["anwesend", "Anwesend", "M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"],
   ["abwesend", "Abwesend", "M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"]];
 const MODE_CSS = `
-.hp-root { container-type: inline-size; }
 .modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 @container (min-width: 520px) { .modes { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-.mode { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 14px; border-radius: 16px;
-  border: 1px solid var(--hp-border); background: var(--ha-card-background, var(--card-background-color, transparent)); cursor: pointer; text-align: left; }
+.mode { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 14px; cursor: pointer; text-align: left; }
 .mode svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.mode b { font-size: 14px; } .mode.on { background: var(--hp-blue); border-color: transparent; color: #fff; }
-.mode.on .muted { color: rgba(255,255,255,.85); }
+.mode b { font-size: 14px; } .mode.on { background: var(--hp-accent); border-color: transparent; color: var(--hp-on-accent); }
+.mode.on .muted { color: inherit; opacity: .85; }
 `;
 class HeatPilotModeCard extends HPBase {
   static getConfigElement() { return document.createElement("heatpilot-mode-card-editor"); }
@@ -502,15 +502,17 @@ class HeatPilotModeCard extends HPBase {
   getCardSize() { return 2; }
   renderKey(hass) { const s = hass.states[MODE]; return JSON.stringify([s && s.state, s && s.attributes.until, this._msg]); }
   render() {
-    const card = this.root(MODE_CSS, this.config.card ? "ha-card" : "div"), s = this._hass.states[MODE];
+    const card = this.root(MODE_CSS, false), s = this._hass.states[MODE];
     if (!s) { card.innerHTML = `<p class="muted">sensor.heatpilot_modus fehlt – HeatPilot-Add-on ab 0.62 nötig.</p>`; return; }
     const cur = s.state, until = s.attributes.until, m = this._msg || {};
-    card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") + `<div class="modes">` +
-      MODES.map(([k, t, d]) => `<button class="mode${cur === k ? " on" : ""}" data-mode="${k}"><svg viewBox="0 0 24 24"><path d="${d}"/></svg>` +
-        `<b>${t}</b><span class="muted">${cur === k ? `bis ${clock(until)} · tippen beendet` : "nur jetzt"}</span></button>`).join("") +
+    card.innerHTML = this.heading() + `<div class="modes">` +
+      MODES.map(([k, t, d]) => `<ha-card class="mode${cur === k ? " on" : ""}" data-mode="${k}" role="button" tabindex="0"><svg viewBox="0 0 24 24"><path d="${d}"/></svg>` +
+        `<b>${t}</b><span class="muted">${cur === k ? `bis ${clock(until)} · tippen beendet` : "nur jetzt"}</span></ha-card>`).join("") +
       `</div><div class="msg${m.err ? " err" : " muted"}">${esc(m.text || "")}</div>`;
-    card.querySelectorAll("[data-mode]").forEach((el) => el.addEventListener("click", () =>
-      this.command({ a: "override", mode: el.dataset.mode === cur ? "aus" : el.dataset.mode }, this.report())));
+    card.querySelectorAll("[data-mode]").forEach((el) => {
+      el.addEventListener("click", () => this.command({ a: "override", mode: el.dataset.mode === cur ? "aus" : el.dataset.mode }, this.report()));
+      el.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); el.click(); } });
+    });
   }
 }
 
@@ -527,12 +529,12 @@ const HINT_PATH = {
   ok: "M20 6 9 17l-5-5",
 };
 const HINTS_CSS = `
-.hints { display: flex; flex-direction: column; gap: 8px; }
-.hint { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 14px;
-  border: 1px solid var(--hp-border); background: var(--ha-card-background, var(--card-background-color, transparent)); }
+.hint { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; }
+.hint:first-child { padding-top: 0; } .hint:last-child { padding-bottom: 0; }
+.hint + .hint { border-top: 1px solid var(--hp-border); }
 .hint svg { flex: none; width: 20px; height: 20px; margin-top: 1px; fill: none; stroke: currentColor; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round; }
-.hint.lueften svg { color: var(--hp-blue); fill: currentColor; stroke: none; }
+.hint.lueften svg { color: var(--info-color, #039be5); fill: currentColor; stroke: none; }
 .hint.problem svg { color: var(--error-color, #c62828); } .hint.ok svg { color: var(--success-color, #2e7d32); }
 .hint b { display: block; font-weight: 500; font-size: 14px; line-height: 1.35; color: var(--hp-text); }
 `;
@@ -545,11 +547,11 @@ class HeatPilotHintsCard extends HPBase {
     const s = this._hass.states[HINTS], all = (s && s.attributes.items) || [], hide = new Set(this.config.hide || []);
     const items = all.filter((h) => !hide.has(hintGroup(h)));
     this.style.display = s && !items.length && this.config.hide_empty ? "none" : "";
-    const card = this.root(HINTS_CSS, this.config.card ? "ha-card" : "div");
+    const card = this.root(HINTS_CSS);
     if (!s) { card.innerHTML = `<p class="muted">sensor.heatpilot_hinweise fehlt – HeatPilot-Add-on ab 0.75 nötig.</p>`; return; }
     const row = (kind, text, sub) => `<div class="hint ${kind}"><svg viewBox="0 0 24 24"><path d="${HINT_PATH[kind] || HINT_PATH.problem}"/></svg>` +
       `<div><b>${esc(text)}</b>${sub ? `<span class="muted">${esc(sub)}</span>` : ""}</div></div>`;
-    card.innerHTML = (this.config.title ? `<h2>${esc(this.config.title)}</h2>` : "") + `<div class="hints">` +
+    card.innerHTML = `<div class="hints">` +
       (items.length ? items.map((h) => row(h.kind, h.text,
         [h.since ? `seit ${clock(h.since)}` : "", h.note || ""].filter(Boolean).join(" · "))).join("")
         : row("ok", "Keine Hinweise", all.length ? "Nichts steht an." : "Luftfeuchte und HeatPilot sind in Ordnung.")) + `</div>`;
@@ -584,24 +586,20 @@ const TITLE = { name: "title", label: "Titel", selector: { text: {} } };
 class RoomsCardEditor extends HPEditor {
   schema(hass) {
     return [roomSelector(hass, "Leer = alle Räume von HeatPilot, in dessen Reihenfolge"), TITLE,
-      { type: "grid", name: "", schema: [
-        { name: "columns", label: "Spalten (breite Ansicht)", selector: { number: { min: 1, max: 6, mode: "box" } } },
-        { name: "card", label: "Mit Kartenrahmen", selector: { boolean: {} } }] }];
+      { name: "columns", label: "Spalten (breite Ansicht)", selector: { number: { min: 1, max: 6, mode: "box" } } }];
   }
 }
 class ControlCardEditor extends HPEditor {
   schema(hass) { return [roomSelector(hass, "Räume zur Auswahl – leer = alle"), TITLE]; }
 }
 class ModeCardEditor extends HPEditor {
-  schema() { return [TITLE, { name: "card", label: "Mit Kartenrahmen", selector: { boolean: {} } }]; }
+  schema() { return [TITLE]; }
 }
 class HintsCardEditor extends HPEditor {
   schema() {
     return [TITLE, { name: "hide", label: "Nicht anzeigen", helper: "Diese Gruppen blendet die Karte aus – z. B. Ventile für Mitbewohner",
       selector: { select: { multiple: true, mode: "list", options: HINT_GROUPS.map(([value, label]) => ({ value, label })) } } },
-    { type: "grid", name: "", schema: [
-      { name: "hide_empty", label: "Ausblenden, wenn nichts ansteht", selector: { boolean: {} } },
-      { name: "card", label: "Mit Kartenrahmen", selector: { boolean: {} } }] }];
+    { name: "hide_empty", label: "Ausblenden, wenn nichts ansteht", selector: { boolean: {} } }];
   }
 }
 class WeatherCardEditor extends HPEditor {
