@@ -12,7 +12,7 @@
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.8.1";
+const HP_VERSION = "0.8.2";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
@@ -69,10 +69,15 @@ button { font: inherit; color: inherit; }
 .msg.err { color: var(--error-color, #c62828); }
 `;
 
-// Befehl an das Add-on (input_text.heatpilot_befehl); n macht gleiche Befehle unterscheidbar
+// Befehl an das Add-on (input_text.heatpilot_befehl); n macht gleiche Befehle unterscheidbar. Räume gehen als Nummer
+// (order des Raum-Sensors, Add-on ab 0.75.3): Der Helfer fasst 255 Zeichen, mehrere lange Entitäten passten nicht hinein.
 function sendCommand(hass, cmd) {
-  const n = Date.now() % 1e9;
-  return hass.callService("input_text", "set_value", { entity_id: COMMAND, value: JSON.stringify({ ...cmd, n }) }).then(() => n);
+  const n = Date.now() % 1e9, order = {};
+  for (const e of Object.keys(hass.states)) if (e.startsWith(ROOM_PREFIX)) order[hass.states[e].attributes.climate] = hass.states[e].attributes.order;
+  const ref = (c) => Number.isInteger(order[c]) ? order[c] : c, out = { ...cmd, n };
+  if (out.room !== undefined) out.room = ref(out.room);
+  if (Array.isArray(out.rooms)) out.rooms = out.rooms.map(ref);
+  return hass.callService("input_text", "set_value", { entity_id: COMMAND, value: JSON.stringify(out) }).then(() => n);
 }
 // Ergebnis des Befehls n aus sensor.heatpilot_boost → last (null, solange es fehlt)
 function commandResult(hass, n) {
@@ -122,7 +127,7 @@ class HPBase extends HTMLElement {
   canCommand() { return !!this._hass.states[COMMAND]; }
   // Befehl senden und das Ergebnis abwarten (bis 20 s); show(text, fehler) meldet den Stand
   async command(cmd, show = () => {}) {
-    if (!this.canCommand()) { show("Bedienen nicht möglich – HeatPilot-Add-on ab 0.56 nötig.", true); return null; }
+    if (!this.canCommand()) { show("Bedienen nicht möglich – HeatPilot-Add-on ab 0.75.3 nötig.", true); return null; }
     show("Wird gesendet …", false);
     try {
       const n = await sendCommand(this._hass, cmd);
@@ -255,7 +260,7 @@ class HeatPilotRoomsCard extends HPBase {
     if (!r) return "";
     const soll = tileSoll(r), off = soll === null, c = tileColors(soll, off ? "off" : "heat"), own = (r.own || {}).mode;
     const mode = ownLed(r) ? (!own ? "auto" : own === "aus" ? "off" : "heat") : r.mode;
-    const cmd = (o) => esc(JSON.stringify({ room: r.climate, rooms: [r.climate], ...o }));
+    const cmd = (o) => esc(JSON.stringify(o.a === "temp" ? { room: r.climate, ...o } : { rooms: [r.climate], ...o }));
     const t = (d) => Math.min(Math.max((soll ?? 20) + d, 5), 25), m = this._msg || {};
     return `<dialog><ha-card class="dlg" style="--t-fg:${c.fg}"><h3>${esc(r.name)}<button class="x" data-x aria-label="Schließen">✕</button></h3>` +
       `<div class="muted">${fmt(r.temp)} °C · ${esc(roomState(r))}</div>` +

@@ -16,7 +16,7 @@ eigene Farben haben nur die Wetter-Grafik und die Raumkacheln nach Soll), ohne c
 
 ## Voraussetzung
 
-EMS HeatPilot **ab 0.56**. Das Add-on stellt `sensor.heatpilot_raum_*` und `sensor.heatpilot_boost` bereit und legt
+EMS HeatPilot **ab 0.75.3** (Card ab 0.8.2: Räume gehen als Nummer in den Befehl, Soll −/+ im Pop-up der Raumkachel). Das Add-on stellt `sensor.heatpilot_raum_*` und `sensor.heatpilot_boost` bereit und legt
 den Helfer `input_text.heatpilot_befehl` an, über den die Karten bedienen. Die Wetter-Karte braucht nur eine
 Wetter-Entität mit stündlicher Vorhersage.
 
@@ -60,9 +60,9 @@ type: custom:heatpilot-hints-card  # Add-on ab 0.75, liest sensor.heatpilot_hinw
 ## So bedienen die Karten
 
 Die Karten schreiben einen Befehl als JSON in `input_text.heatpilot_befehl`, z. B.
-`{"a": "boost", "rooms": ["climate.wohnzimmer"], "temp": 22, "minutes": 120}`. HeatPilot führt ihn aus wie die
+`{"a": "boost", "rooms": [0, 2], "temp": 22, "minutes": 120}` (Räume als Nummer, `order` des Raum-Sensors). HeatPilot führt ihn aus wie die
 Knöpfe im Reiter „Heizen“, leert das Feld und meldet das Ergebnis in `sensor.heatpilot_boost` (Attribut `last`) –
-die Karte zeigt Fehler direkt unter den Knöpfen. Mögliche Befehle: `boost`, `schedule`, `mode`, `override` (`{"a": "override", "mode": "nacht"}`, `aus` beendet).
+die Karte zeigt Fehler direkt unter den Knöpfen. Mögliche Befehle: `boost`, `schedule`, `temp`, `mode`, `override` (`{"a": "override", "mode": "nacht"}`, `aus` beendet).
 
 ## Wer bedient was
 
