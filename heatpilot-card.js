@@ -12,7 +12,7 @@
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.8.2";
+const HP_VERSION = "0.8.3";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
@@ -222,7 +222,7 @@ class HeatPilotRoomsCard extends HPBase {
   renderKey(hass) {
     const es = roomEntities(hass, this.config || {});
     return JSON.stringify([es.map((e) => [hass.states[e].state, hass.states[e].attributes, hass.states[hass.states[e].attributes.climate]]),
-      this._dlg, this._msg]);
+      this._dlg, this._msg, this._pend]);
   }
   // Anzeige wie im Reiter „Heizen“
   tile(r) {
@@ -253,19 +253,38 @@ class HeatPilotRoomsCard extends HPBase {
     }
     on("[data-x]", close);
     on("[data-more]", (el) => this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.more }, bubbles: true, composed: true })));
-    on("[data-cmd]", (el) => this.command(JSON.parse(el.dataset.cmd), this.report()));
+    // sofort anzeigen (0.8.3): −/+ zählt gleich hoch, gesendet wird einmal, 0,7 s nach dem letzten Tipp; die gewählte
+    // Betriebsart ist gleich markiert. Die Anzeige bleibt, bis HeatPilot den Wert meldet (höchstens 20 s) – Fehler nehmen sie zurück.
+    const quiet = (text, err) => { if (err) this._pend = null; this._msg = err ? { text, err } : null; this._key = null; this.render(); };
+    const pend = (o) => { this._pend = { ...(this._pend && this._pend.climate === this._dlg ? this._pend : {}), climate: this._dlg, ts: Date.now(), ...o }; this._msg = null; this._key = null; this.render(); };
+    on("[data-step]", (el) => {
+      const room = this._dlg, temp = Number(el.dataset.step);
+      pend({ temp });
+      clearTimeout(this._send);
+      this._send = setTimeout(() => this.command({ a: "temp", room, temp }, quiet), 700);
+    });
+    on("[data-cmd]", (el) => {
+      const cmd = JSON.parse(el.dataset.cmd);
+      if (cmd.a !== "mode") return this.command(cmd, this.report());
+      clearTimeout(this._send);
+      pend({ mode: cmd.mode, temp: undefined });
+      this.command(cmd, quiet);
+    });
   }
   // Ein Raum als Pop-up: Soll −/+, Zeitplan | Manuell | Aus, Boost – geht über den Befehl an HeatPilot (heat_actions)
   dialog(r) {
     if (!r) return "";
-    const soll = tileSoll(r), off = soll === null, c = tileColors(soll, off ? "off" : "heat"), own = (r.own || {}).mode;
-    const mode = ownLed(r) ? (!own ? "auto" : own === "aus" ? "off" : "heat") : r.mode;
-    const cmd = (o) => esc(JSON.stringify(o.a === "temp" ? { room: r.climate, ...o } : { rooms: [r.climate], ...o }));
+    const own = (r.own || {}).mode, real = tileSoll(r), realMode = ownLed(r) ? (!own ? "auto" : own === "aus" ? "off" : "heat") : r.mode;
+    let p = this._pend && this._pend.climate === r.climate ? this._pend : null;  // gerade gewählt, noch nicht gemeldet
+    if (p && (Date.now() - p.ts > 20000 || ((p.temp === undefined || p.temp === real) && (p.mode === undefined || p.mode === realMode)))) p = this._pend = null;
+    const mode = (p && p.mode) || (p && p.temp !== undefined ? "heat" : realMode);
+    const soll = p && p.temp !== undefined ? p.temp : p && p.mode === "off" ? null : real, off = soll === null, c = tileColors(soll, off ? "off" : "heat");
+    const cmd = (o) => esc(JSON.stringify({ rooms: [r.climate], ...o }));
     const t = (d) => Math.min(Math.max((soll ?? 20) + d, 5), 25), m = this._msg || {};
     return `<dialog><ha-card class="dlg" style="--t-fg:${c.fg}"><h3>${esc(r.name)}<button class="x" data-x aria-label="Schließen">✕</button></h3>` +
       `<div class="muted">${fmt(r.temp)} °C · ${esc(roomState(r))}</div>` +
-      `<div class="step"><button data-cmd="${cmd({ a: "temp", temp: t(-0.5) })}"${off ? " disabled" : ""}>−</button>` +
-      `<span>${off ? "Aus" : fmt(soll) + " °C"}</span><button data-cmd="${cmd({ a: "temp", temp: t(0.5) })}"${off ? " disabled" : ""}>+</button></div>` +
+      `<div class="step"><button data-step="${t(-0.5)}"${off ? " disabled" : ""}>−</button>` +
+      `<span>${off ? "Aus" : fmt(soll) + " °C"}</span><button data-step="${t(0.5)}"${off ? " disabled" : ""}>+</button></div>` +
       `<div class="seg">${[["auto", "Zeitplan"], ["heat", "Manuell"], ["off", "Aus"]].map(([k, l]) =>
         `<button class="${mode === k ? "on" : ""}" data-cmd="${cmd({ a: "mode", mode: k })}">${l}</button>`).join("")}</div>` +
       `<div class="seg">${[30, 60, 120].map((min) => `<button data-cmd="${cmd({ a: "boost", temp: t(2), minutes: min })}">Boost ${leftText(min).replace(":00 h", " h")}</button>`).join("")}</div>` +
