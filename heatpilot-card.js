@@ -12,7 +12,7 @@
  * Bedienen: JSON-Befehl in input_text.heatpilot_befehl – das Add-on führt ihn aus wie die Knöpfe im Reiter
  * „Heizen“, leert das Feld und meldet das Ergebnis in sensor.heatpilot_boost → last.
  */
-const HP_VERSION = "0.8.0";
+const HP_VERSION = "0.8.1";
 const COMMAND = "input_text.heatpilot_befehl";
 const BOOST = "sensor.heatpilot_boost";
 const ROOM_PREFIX = "sensor.heatpilot_raum_";
@@ -191,7 +191,9 @@ const ROOMS_CSS = `
 .rtile .state { font-size: 12px; color: var(--hp-text2); margin-top: 2px; }
 .rtile .big { color: var(--t-fg); }  /* 0.6.0: Farbe nach Soll, nicht nach „heizt“ */
 .rtile.off h3 { color: var(--hp-text2); }
-.dlg { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; gap: 10px; padding: 14px; overflow: auto; }
+dialog { border: 0; padding: 0; background: transparent; width: min(380px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+dialog::backdrop { background: rgba(0,0,0,.5); }
+.dlg { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
 .dlg h3 { margin: 0; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
 .dlg .x { border: 0; background: none; font-size: 18px; cursor: pointer; color: var(--hp-text2); }
 .dlg .step { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--hp-border); border-radius: var(--hp-r2); }
@@ -237,18 +239,25 @@ class HeatPilotRoomsCard extends HPBase {
     // Antippen: HeatPilots eigenes Climate (0.6.0) – das Thermostat-Pop-up nur noch für die Einrichtung (Link im Dialog)
     const on = (sel, fn) => card.querySelectorAll(sel).forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); fn(el); }));
     on("[data-dlg]", (el) => { this._dlg = el.dataset.dlg; this._msg = null; this._key = null; this.render(); });
-    on("[data-x]", () => { this._dlg = null; this._key = null; this.render(); });
+    // echtes Pop-up (0.8.1): mittig über der Seite, schließt mit ✕, Esc oder einem Tipp daneben
+    const close = () => { this._dlg = null; this._key = null; this.render(); }, dlg = card.querySelector("dialog");
+    if (dlg) {
+      dlg.showModal();
+      dlg.addEventListener("close", close);
+      dlg.addEventListener("click", (ev) => { if (ev.target === dlg) close(); });
+    }
+    on("[data-x]", close);
     on("[data-more]", (el) => this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.more }, bubbles: true, composed: true })));
     on("[data-cmd]", (el) => this.command(JSON.parse(el.dataset.cmd), this.report()));
   }
-  // Ein Raum: Soll −/+, Zeitplan | Manuell | Aus, Boost – geht über den Befehl an HeatPilot (heat_actions)
+  // Ein Raum als Pop-up: Soll −/+, Zeitplan | Manuell | Aus, Boost – geht über den Befehl an HeatPilot (heat_actions)
   dialog(r) {
     if (!r) return "";
     const soll = tileSoll(r), off = soll === null, c = tileColors(soll, off ? "off" : "heat"), own = (r.own || {}).mode;
     const mode = ownLed(r) ? (!own ? "auto" : own === "aus" ? "off" : "heat") : r.mode;
     const cmd = (o) => esc(JSON.stringify({ room: r.climate, rooms: [r.climate], ...o }));
     const t = (d) => Math.min(Math.max((soll ?? 20) + d, 5), 25), m = this._msg || {};
-    return `<ha-card class="dlg" style="--t-fg:${c.fg}"><h3>${esc(r.name)}<button class="x" data-x aria-label="Schließen">✕</button></h3>` +
+    return `<dialog><ha-card class="dlg" style="--t-fg:${c.fg}"><h3>${esc(r.name)}<button class="x" data-x aria-label="Schließen">✕</button></h3>` +
       `<div class="muted">${fmt(r.temp)} °C · ${esc(roomState(r))}</div>` +
       `<div class="step"><button data-cmd="${cmd({ a: "temp", temp: t(-0.5) })}"${off ? " disabled" : ""}>−</button>` +
       `<span>${off ? "Aus" : fmt(soll) + " °C"}</span><button data-cmd="${cmd({ a: "temp", temp: t(0.5) })}"${off ? " disabled" : ""}>+</button></div>` +
@@ -256,7 +265,7 @@ class HeatPilotRoomsCard extends HPBase {
         `<button class="${mode === k ? "on" : ""}" data-cmd="${cmd({ a: "mode", mode: k })}">${l}</button>`).join("")}</div>` +
       `<div class="seg">${[30, 60, 120].map((min) => `<button data-cmd="${cmd({ a: "boost", temp: t(2), minutes: min })}">Boost ${leftText(min).replace(":00 h", " h")}</button>`).join("")}</div>` +
       `<button class="link" data-more="${esc(r.climate)}">Thermostat (Einrichtung) ›</button>` +
-      `<div class="msg${m.err ? " err" : " muted"}">${esc(m.text || "")}</div></ha-card>`;
+      `<div class="msg${m.err ? " err" : " muted"}">${esc(m.text || "")}</div></ha-card></dialog>`;
   }
 }
 
