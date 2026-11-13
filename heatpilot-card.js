@@ -33,10 +33,10 @@ const store = {
 
 // Farbe nach Soll wie in der HeatPilot-Seite: aus = grau, kühl = türkis, ab 19 °C bernstein bis orange
 function tileColors(target, mode) {
-  if (mode === "off" || target === null || target === undefined || target < 5) return { fg: "#8f9aa6", bg: "rgba(143,154,166,.10)" };
-  if (target < 19) { const h = 175 - (target - 5) * 1.2; return { fg: `hsl(${h},70%,45%)`, bg: `hsla(${h},70%,45%,.12)` }; }
+  if (mode === "off" || target === null || target === undefined || target < 5) return { fg: "#8f9aa6", bg: "rgba(143,154,166,.15)" };
+  if (target < 19) { const h = 175 - (target - 5) * 1.2; return { fg: `hsl(${h},70%,45%)`, bg: `hsla(${h},70%,45%,.17)` }; }
   const h = 45 - Math.min(target - 19, 6) * 3.5;
-  return { fg: `hsl(${h},95%,52%)`, bg: `hsla(${h},95%,52%,.14)` };
+  return { fg: `hsl(${h},95%,52%)`, bg: `hsla(${h},95%,52%,.19)` };
 }
 
 const ICON = {
